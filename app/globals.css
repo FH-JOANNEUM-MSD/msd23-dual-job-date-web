@@ -339,3 +339,15 @@ body {
 .kebabDanger:hover {
   background: #fff1f2;
 }
+
+.kebabMenuPortal {
+  position: fixed;
+  transform: translateX(-100%); /* align menu's right edge to the button's right edge */
+  min-width: 160px;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 9999;
+}

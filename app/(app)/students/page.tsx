@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type StudentStatus = "Aktiv" | "Inaktiv";
 
@@ -39,28 +40,58 @@ function isValidEmail(email: string) {
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>(initialStudents);
 
+  // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const anchorBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
-React.useEffect(() => {
-  function onDocumentClick(e: MouseEvent) {
-    const target = e.target as HTMLElement | null;
-    // close if click is outside any kebab root
-    if (!target?.closest?.("[data-kebab-root]")) {
-      setOpenMenuId(null);
+  React.useEffect(() => setMounted(true), []);
+
+  function updateMenuPos() {
+    const el = anchorBtnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // right-aligned menu: we'll position with left=r.right and CSS translateX(-100%)
+    setMenuPos({ top: r.bottom + 6, left: r.right });
+  }
+
+  // Close on outside click + ESC
+  React.useEffect(() => {
+    function onDocumentClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest?.("[data-kebab-root]")) {
+        setOpenMenuId(null);
+      }
     }
-  }
 
-  function onKeyDown(e: KeyboardEvent) {
-    if (e.key === "Escape") setOpenMenuId(null);
-  }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpenMenuId(null);
+    }
 
-  document.addEventListener("click", onDocumentClick);
-  document.addEventListener("keydown", onKeyDown);
-  return () => {
-    document.removeEventListener("click", onDocumentClick);
-    document.removeEventListener("keydown", onKeyDown);
-  };
-}, []);
+    document.addEventListener("click", onDocumentClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("click", onDocumentClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  // Keep portal menu positioned on scroll/resize (works for nested scroll containers too)
+  React.useEffect(() => {
+    if (!openMenuId) return;
+
+    updateMenuPos();
+    const onMove = () => updateMenuPos();
+
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+
+    return () => {
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [openMenuId]);
 
   // dialog + form state
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -150,6 +181,8 @@ React.useEffect(() => {
     setStudents((prev) => prev.filter((x) => x.id !== id));
   }
 
+  const activeStudent = students.find((x) => x.id === openMenuId) ?? null;
+
   return (
     <>
       <div className="pageHeader">
@@ -192,6 +225,7 @@ React.useEffect(() => {
                       {s.status}
                     </span>
                   </td>
+
                   <td style={{ textAlign: "right" }}>
                     <div className="kebab" data-kebab-root>
                       <button
@@ -201,40 +235,14 @@ React.useEffect(() => {
                         aria-haspopup="menu"
                         aria-expanded={openMenuId === s.id}
                         onClick={(e) => {
-                          e.stopPropagation(); // keep it from bubbling weirdly
+                          e.stopPropagation();
+                          anchorBtnRef.current = e.currentTarget; // anchor for portal positioning
+                          updateMenuPos();
                           setOpenMenuId((prev) => (prev === s.id ? null : s.id));
                         }}
                       >
                         ⋮
                       </button>
-
-                      {openMenuId === s.id && (
-                        <div className="kebabMenu" role="menu" aria-label="Aktionen Menü">
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="kebabItem"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              openEditDialog(s);
-                            }}
-                          >
-                            Bearbeiten
-                          </button>
-
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="kebabItem kebabDanger"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              onDelete(s.id);
-                            }}
-                          >
-                            Löschen
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -243,6 +251,44 @@ React.useEffect(() => {
           </tbody>
         </table>
       </div>
+
+      {/* Portal menu rendered outside the table so it can't get clipped */}
+      {mounted && openMenuId && menuPos && activeStudent
+        ? createPortal(
+            <div
+              className="kebabMenuPortal"
+              data-kebab-root
+              role="menu"
+              aria-label="Aktionen Menü"
+              style={{ top: menuPos.top, left: menuPos.left }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="kebabItem"
+                onClick={() => {
+                  setOpenMenuId(null);
+                  openEditDialog(activeStudent);
+                }}
+              >
+                Bearbeiten
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                className="kebabItem kebabDanger"
+                onClick={() => {
+                  setOpenMenuId(null);
+                  onDelete(activeStudent.id);
+                }}
+              >
+                Löschen
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
 
       <dialog
         ref={dialogRef}
