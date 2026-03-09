@@ -1,47 +1,14 @@
+// app/(app)/companies/page.tsx
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-
-type Status = "Aktiv" | "Inaktiv";
-
-type Company = {
-  id: string;
-  name: string;
-  description: string; // not shown in table, but stored for edit/detail
-  program: string;
-  industry: string; // "Branche"
-  website: string;
-  status: Status;
-};
-
-const DEFAULT_PROGRAM = "Mobile Software Development";
-
-const initialCompanies: Company[] = [
-  {
-    id: "c1",
-    name: "Test AG",
-    description: "Ein Beispielunternehmen für Demo-Zwecke.",
-    program: DEFAULT_PROGRAM,
-    industry: "IT",
-    website: "https://www.fh-joanneum.at",
-    status: "Aktiv",
-  },
-  {
-    id: "c2",
-    name: "Test2 AG",
-    description: "Noch ein Unternehmen. Beschreibung wird später in Detailansicht genutzt.",
-    program: DEFAULT_PROGRAM,
-    industry: "IT",
-    website: "https://www.fh-joanneum.at",
-    status: "Aktiv",
-  },
-];
+import { useRouter } from "next/navigation";
+import { DEFAULT_COMPANY_PROGRAM, Company, CompanyStatus, useCompaniesStore } from "@/lib/companiesStore";
 
 function normalizeWebsite(input: string) {
   const v = input.trim();
   if (!v) return "";
-  // If user entered "example.com", prefix https://
   if (!/^https?:\/\//i.test(v)) return `https://${v}`;
   return v;
 }
@@ -49,7 +16,6 @@ function normalizeWebsite(input: string) {
 function isValidUrl(url: string) {
   if (!url) return true; // allow empty
   try {
-    // will throw if invalid
     new URL(url);
     return true;
   } catch {
@@ -58,7 +24,8 @@ function isValidUrl(url: string) {
 }
 
 export default function CompaniesPage() {
-  const [companies, setCompanies] = useState<Company[]>(initialCompanies);
+  const router = useRouter();
+  const { companies, remove, add } = useCompaniesStore();
 
   // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -72,7 +39,7 @@ export default function CompaniesPage() {
     const el = anchorBtnRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setMenuPos({ top: r.bottom + 6, left: r.right }); // right-aligned via CSS translateX(-100%)
+    setMenuPos({ top: r.bottom + 6, left: r.right });
   }
 
   // Close menu on outside click + ESC
@@ -93,58 +60,36 @@ export default function CompaniesPage() {
     };
   }, []);
 
-  // Keep portal menu positioned on scroll/resize (including nested scroll containers)
+  // Keep portal menu positioned on scroll/resize
   React.useEffect(() => {
     if (!openMenuId) return;
 
     updateMenuPos();
     const onMove = () => updateMenuPos();
-
     window.addEventListener("scroll", onMove, true);
     window.addEventListener("resize", onMove);
-
     return () => {
       window.removeEventListener("scroll", onMove, true);
       window.removeEventListener("resize", onMove);
     };
   }, [openMenuId]);
 
-  // --- Dialog + form state ---
+  // --- Add dialog state ---
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [program, setProgram] = useState(DEFAULT_PROGRAM);
+  const [program, setProgram] = useState(DEFAULT_COMPANY_PROGRAM);
   const [industry, setIndustry] = useState("IT");
   const [website, setWebsite] = useState("");
-  const [status, setStatus] = useState<Status>("Aktiv");
+  const [status, setStatus] = useState<CompanyStatus>("Aktiv");
   const [error, setError] = useState<string | null>(null);
-
-  const isEditing = useMemo(() => editingId !== null, [editingId]);
 
   function openAddDialog() {
     setOpenMenuId(null);
-    setEditingId(null);
     setName("");
-    setDescription("");
-    setProgram(DEFAULT_PROGRAM);
+    setProgram(DEFAULT_COMPANY_PROGRAM);
     setIndustry("IT");
     setWebsite("");
     setStatus("Aktiv");
-    setError(null);
-    dialogRef.current?.showModal();
-  }
-
-  function openEditDialog(c: Company) {
-    setOpenMenuId(null);
-    setEditingId(c.id);
-    setName(c.name);
-    setDescription(c.description);
-    setProgram(c.program);
-    setIndustry(c.industry);
-    setWebsite(c.website);
-    setStatus(c.status);
     setError(null);
     dialogRef.current?.showModal();
   }
@@ -154,7 +99,7 @@ export default function CompaniesPage() {
     setError(null);
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -168,42 +113,26 @@ export default function CompaniesPage() {
     if (!trimmedIndustry) return setError("Bitte Branche eingeben.");
     if (!isValidUrl(normalizedWebsite)) return setError("Bitte eine gültige Website-URL eingeben.");
 
-    // Optional: prevent duplicate name (handy constraint)
-    const nameTaken = companies.some(
-      (c) => c.name.toLowerCase() === trimmedName.toLowerCase() && c.id !== editingId
-    );
+    const nameTaken = companies.some((c) => c.name.toLowerCase() === trimmedName.toLowerCase());
     if (nameTaken) return setError("Dieser Firmenname ist bereits vorhanden.");
 
-    if (editingId) {
-      setCompanies((prev) =>
-        prev.map((c) =>
-          c.id === editingId
-            ? {
-                ...c,
-                name: trimmedName,
-                description: description.trim(),
-                program: trimmedProgram,
-                industry: trimmedIndustry,
-                website: normalizedWebsite,
-                status,
-              }
-            : c
-        )
-      );
-    } else {
-      const newCompany: Company = {
-        id: crypto.randomUUID(),
-        name: trimmedName,
-        description: description.trim(),
-        program: trimmedProgram,
-        industry: trimmedIndustry,
-        website: normalizedWebsite,
-        status,
-      };
-      setCompanies((prev) => [newCompany, ...prev]);
-    }
+    const newCompany: Company = {
+      id: crypto.randomUUID(),
+      name: trimmedName,
+      description: "",
+      program: trimmedProgram,
+      industry: trimmedIndustry,
+      website: normalizedWebsite,
+      status,
+      locations: "",
+      jobDescription: "",
+    };
 
+    add(newCompany);
     closeDialog();
+
+    // Nice UX: go directly to edit/profile page
+    router.push(`/companies/${newCompany.id}/edit`);
   }
 
   function onDelete(id: string) {
@@ -211,10 +140,14 @@ export default function CompaniesPage() {
     if (!c) return;
     const ok = confirm(`Unternehmen "${c.name}" wirklich löschen?`);
     if (!ok) return;
-    setCompanies((prev) => prev.filter((x) => x.id !== id));
+    setOpenMenuId(null);
+    remove(id);
   }
 
-  const activeCompany = companies.find((x) => x.id === openMenuId) ?? null;
+  const activeCompany = useMemo(
+    () => companies.find((x) => x.id === openMenuId) ?? null,
+    [companies, openMenuId]
+  );
 
   return (
     <>
@@ -295,7 +228,7 @@ export default function CompaniesPage() {
         </table>
       </div>
 
-      {/* Portal menu rendered outside the table so it can't get clipped */}
+      {/* Portal menu rendered outside the table */}
       {mounted && openMenuId && menuPos && activeCompany
         ? createPortal(
             <div
@@ -311,20 +244,17 @@ export default function CompaniesPage() {
                 className="kebabItem"
                 onClick={() => {
                   setOpenMenuId(null);
-                  openEditDialog(activeCompany);
+                  router.push(`/companies/${activeCompany.id}/edit`);
                 }}
               >
-                Bearbeiten
+                Profil bearbeiten
               </button>
 
               <button
                 type="button"
                 role="menuitem"
                 className="kebabItem kebabDanger"
-                onClick={() => {
-                  setOpenMenuId(null);
-                  onDelete(activeCompany.id);
-                }}
+                onClick={() => onDelete(activeCompany.id)}
               >
                 Löschen
               </button>
@@ -333,19 +263,11 @@ export default function CompaniesPage() {
           )
         : null}
 
-      <dialog
-        ref={dialogRef}
-        className="dialog"
-        onClose={() => {
-          setEditingId(null);
-          setError(null);
-        }}
-      >
-        <form method="dialog" className="dialogInner" onSubmit={onSubmit}>
+      {/* Add company dialog */}
+      <dialog ref={dialogRef} className="dialog">
+        <form method="dialog" className="dialogInner" onSubmit={onCreate}>
           <div className="dialogHeader">
-            <h3 style={{ margin: 0 }}>
-              {isEditing ? "Unternehmen bearbeiten" : "Unternehmen hinzufügen"}
-            </h3>
+            <h3 style={{ margin: 0 }}>Unternehmen hinzufügen</h3>
             <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
               ✕
             </button>
@@ -354,12 +276,7 @@ export default function CompaniesPage() {
           <div className="grid">
             <label className="field">
               <span>Name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z.B. Musterfirma GmbH"
-                autoFocus
-              />
+              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </label>
 
             <label className="field">
@@ -373,35 +290,17 @@ export default function CompaniesPage() {
 
             <label className="field">
               <span>Akademisches Programm</span>
-              <input
-                value={program}
-                onChange={(e) => setProgram(e.target.value)}
-                placeholder={DEFAULT_PROGRAM}
-              />
+              <input value={program} onChange={(e) => setProgram(e.target.value)} />
             </label>
 
             <label className="field">
               <span>Branche</span>
-              <input
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                placeholder="z.B. IT"
-              />
-            </label>
-
-            <label className="field" style={{ gridColumn: "1 / -1" }}>
-              <span>Beschreibung</span>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Kurzbeschreibung…"
-                rows={4}
-              />
+              <input value={industry} onChange={(e) => setIndustry(e.target.value)} />
             </label>
 
             <label className="field">
               <span>Status</span>
-              <select value={status} onChange={(e) => setStatus(e.target.value as Status)}>
+              <select value={status} onChange={(e) => setStatus(e.target.value as CompanyStatus)}>
                 <option value="Aktiv">Aktiv</option>
                 <option value="Inaktiv">Inaktiv</option>
               </select>
@@ -415,7 +314,7 @@ export default function CompaniesPage() {
               Abbrechen
             </button>
             <button type="submit" className="btn btnPrimary">
-              {isEditing ? "Speichern" : "Hinzufügen"}
+              Erstellen & bearbeiten
             </button>
           </div>
         </form>
