@@ -14,7 +14,10 @@ export default function LoginPage() {
     event.preventDefault();
 
     // TODO: Replace hardcoded credentials with real authentication against the databank.
-    if (username === "admin" && password === "admin") {
+    if (username === "unternehmen" && password === "unternehmen") {
+      setError("");
+      router.push("/companies/c1/edit");
+    } else if (username === "admin" && password === "admin") {
       setError("");
       router.push("/dashboard");
     } else {
