@@ -351,3 +351,16 @@ body {
   padding: 6px;
   z-index: 9999;
 }
+
+.field textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  resize: vertical;
+}
+
+.field textarea:focus {
+  outline: 2px solid rgba(46, 125, 50, 0.25);
+  border-color: var(--green);
+}
