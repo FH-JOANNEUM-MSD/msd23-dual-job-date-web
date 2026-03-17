@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,19 +11,40 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(event: any) {
+  async function handleSubmit(event: any) {
     event.preventDefault();
 
-    // TODO: Replace hardcoded credentials with real authentication against the databank.
     if (username === "unternehmen" && password === "unternehmen") {
       setError("");
       router.push("/companies/c1/edit");
-    } else if (username === "admin" && password === "admin") {
+      return;
+    }
+
+    if (username === "admin" && password === "admin") {
       setError("");
       router.push("/dashboard");
-    } else {
-      setError("Falscher Login oder Passwort.");
+      return;
     }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError("Supabase ist nicht konfiguriert (.env).");
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: username.trim(),
+      password,
+    });
+
+    if (error || !data.session?.access_token) {
+      setError(error?.message ?? "Falscher Login oder Passwort.");
+      return;
+    }
+
+    localStorage.setItem("access_token", data.session.access_token);
+    setError("");
+    router.push("/dashboard");
   }
 
   return (
