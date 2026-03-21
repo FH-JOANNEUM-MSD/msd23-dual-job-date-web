@@ -7,44 +7,48 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: any) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
 
-    if (username === "unternehmen" && password === "unternehmen") {
-      setError("");
-      router.push("/companies/c1/edit");
-      return;
-    }
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        setError("Supabase ist nicht konfiguriert (.env).");
+        return;
+      }
 
-    if (username === "admin" && password === "admin") {
+      const {data, error} = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        setError(error.message || "Login fehlgeschlagen.");
+        return;
+      }
+
+      const token = data.session?.access_token;
+
+      if (!token) {
+        setError("Kein Access Token von Supabase erhalten.");
+        return;
+      }
+
+      localStorage.setItem("access_token", token);
       setError("");
       router.push("/dashboard");
-      return;
+    }catch (err) {
+      setError("Fehler beim Login.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setError("Supabase ist nicht konfiguriert (.env).");
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: username.trim(),
-      password,
-    });
-
-    if (error || !data.session?.access_token) {
-      setError(error?.message ?? "Falscher Login oder Passwort.");
-      return;
-    }
-
-    localStorage.setItem("access_token", data.session.access_token);
-    setError("");
-    router.push("/dashboard");
   }
 
   return (
@@ -61,14 +65,14 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="formGrid">
           <div className="field formFull">
-            <label htmlFor="username">Login</label>
+            <label htmlFor="email">E-Mail</label>
             <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="admin"
+                id="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="name@example.com"
             />
           </div>
 
@@ -80,7 +84,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="admin"
+              placeholder="Passwort"
             />
           </div>
 

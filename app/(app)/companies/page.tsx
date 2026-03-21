@@ -25,7 +25,7 @@ function isValidUrl(url: string) {
 
 export default function CompaniesPage() {
   const router = useRouter();
-  const { companies, remove, add } = useCompaniesStore();
+  const { companies, isLoading, loadError, refresh, remove, add } = useCompaniesStore();
 
   // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -155,11 +155,26 @@ export default function CompaniesPage() {
         <div>
           <h2 style={{ margin: 0 }}>Unternehmen</h2>
         </div>
-
-        <button className="btn btnPrimary" onClick={openAddDialog}>
-          + Unternehmen hinzufügen
-        </button>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn btnGhost" onClick={() => void refresh()}>
+            Neu laden
+          </button>
+          <button className="btn btnPrimary" onClick={openAddDialog}>
+            + Unternehmen hinzufügen
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p className="error" style={{ marginBottom: 12 }}>
+              {loadError}
+            </p>
+            <button className="btn btnPrimary" onClick={() => void refresh()}>
+              Erneut versuchen
+            </button>
+          </div>
+      )}
 
       <div className="tableWrap">
         <table className="table">
@@ -175,7 +190,13 @@ export default function CompaniesPage() {
           </thead>
 
           <tbody>
-            {companies.length === 0 ? (
+            {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="muted" style={{ padding: 16 }}>
+                        Lade Unternehmen...
+                      </td>
+                    </tr>
+                ) : companies.length === 0 ? (
               <tr>
                 <td colSpan={6} className="muted" style={{ padding: 16 }}>
                   Keine Unternehmen vorhanden.

@@ -1,44 +1,20 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import { createPortal } from "react-dom";
-
-type StudentStatus = "Aktiv" | "Inaktiv";
-
-type Student = {
-  id: string;
-  name: string;
-  email: string;
-  program: string;
-  status: StudentStatus;
-};
+import { ApiError } from "@/lib/apiClient";
+import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
 
 const DEFAULT_PROGRAM = "Mobile Software Development";
 
-const initialStudents: Student[] = [
-  {
-    id: "s1",
-    name: "Max Mustermann",
-    email: "max.mustermann@fh-joanneum.at",
-    program: DEFAULT_PROGRAM,
-    status: "Aktiv",
-  },
-  {
-    id: "s2",
-    name: "Erika Musterfrau",
-    email: "erika.musterfrau@fh-joanneum.at",
-    program: DEFAULT_PROGRAM,
-    status: "Inaktiv",
-  },
-];
-
 function isValidEmail(email: string) {
-  // simple and sufficient for UI validation
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -47,6 +23,28 @@ export default function StudentsPage() {
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   React.useEffect(() => setMounted(true), []);
+
+  async function loadStudents() {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const data = await getStudents();
+      setStudents(data);
+    } catch (error) {
+      const message =
+          error instanceof ApiError
+              ? error.message
+              : "Studenten konnten nicht geladen werden.";
+      setLoadError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadStudents();
+  }, []);
 
   function updateMenuPos() {
     const el = anchorBtnRef.current;
@@ -189,11 +187,26 @@ export default function StudentsPage() {
         <div>
           <h2 style={{ margin: 0 }}>Studenten</h2>
         </div>
-
-        <button className="btn btnPrimary" onClick={openAddDialog}>
-          + Student hinzufügen
-        </button>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="btn btnGhost" onClick={() => void loadStudents()}>
+            Neu laden
+          </button>
+          <button className="btn btnPrimary" onClick={openAddDialog}>
+            + Student hinzufügen
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p className="error" style={{ marginBottom: 12 }}>
+              {loadError}
+            </p>
+            <button className="btn btnPrimary" onClick={() => void loadStudents()}>
+              Erneut versuchen
+            </button>
+          </div>
+      )}
 
       <div className="tableWrap">
         <table className="table">
@@ -208,7 +221,13 @@ export default function StudentsPage() {
           </thead>
 
           <tbody>
-            {students.length === 0 ? (
+            {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="muted" style={{ padding: 16 }}>
+                        Lade Studenten...
+                      </td>
+                    </tr>
+                ) : students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="muted" style={{ padding: 16 }}>
                   Keine Studenten vorhanden.
@@ -218,7 +237,7 @@ export default function StudentsPage() {
               students.map((s) => (
                 <tr key={s.id}>
                   <td>{s.name}</td>
-                  <td>{s.email}</td>
+                  <td>{s.email || <span className="muted">Nicht angegeben</span>}</td>
                   <td>{s.program}</td>
                   <td>
                     <span className={`pill ${s.status === "Aktiv" ? "pillActive" : "pillInactive"}`}>
