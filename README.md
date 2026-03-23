@@ -1,5 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+The Web-Portal can be accessed here: [https://dualjobdating.vercel.app/](https://dualjobdating.vercel.app/).
+
 ## Getting Started
 
 First run installation
