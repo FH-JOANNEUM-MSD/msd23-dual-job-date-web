@@ -1,6 +1,6 @@
 "use client";
 
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ApiError } from "@/lib/apiClient";
 import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
@@ -9,6 +9,27 @@ const DEFAULT_PROGRAM = "Mobile Software Development";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function parseProgramInput(
+  input: string
+): { program: string; studyProgram: string; semester: number | null } {
+  const trimmed = input.trim() || DEFAULT_PROGRAM;
+
+  const match = trimmed.match(/^(.*)\s+\(Semester\s+(\d+)\)$/i);
+  if (match) {
+    return {
+      program: trimmed,
+      studyProgram: match[1].trim(),
+      semester: Number(match[2]),
+    };
+  }
+
+  return {
+    program: trimmed,
+    studyProgram: trimmed,
+    semester: null,
+  };
 }
 
 export default function StudentsPage() {
@@ -33,9 +54,7 @@ export default function StudentsPage() {
       setStudents(data);
     } catch (error) {
       const message =
-          error instanceof ApiError
-              ? error.message
-              : "Studenten konnten nicht geladen werden.";
+        error instanceof ApiError ? error.message : "Studenten konnten nicht geladen werden.";
       setLoadError(message);
     } finally {
       setIsLoading(false);
@@ -50,11 +69,9 @@ export default function StudentsPage() {
     const el = anchorBtnRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    // right-aligned menu: we'll position with left=r.right and CSS translateX(-100%)
     setMenuPos({ top: r.bottom + 6, left: r.right });
   }
 
-  // Close on outside click + ESC
   React.useEffect(() => {
     function onDocumentClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
@@ -75,7 +92,6 @@ export default function StudentsPage() {
     };
   }, []);
 
-  // Keep portal menu positioned on scroll/resize (works for nested scroll containers too)
   React.useEffect(() => {
     if (!openMenuId) return;
 
@@ -143,17 +159,26 @@ export default function StudentsPage() {
     if (!isValidEmail(trimmedEmail)) return setError("Bitte eine gültige E-Mail eingeben.");
     if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
 
-    // prevent duplicate email (common real-world constraint)
     const emailTaken = students.some(
       (s) => s.email.toLowerCase() === trimmedEmail.toLowerCase() && s.id !== editingId
     );
     if (emailTaken) return setError("Diese E-Mail ist bereits vergeben.");
 
+    const parsedProgram = parseProgramInput(trimmedProgram);
+
     if (editingId) {
       setStudents((prev) =>
         prev.map((s) =>
           s.id === editingId
-            ? { ...s, name: trimmedName, email: trimmedEmail, program: trimmedProgram, status }
+            ? {
+                ...s,
+                name: trimmedName,
+                email: trimmedEmail,
+                program: parsedProgram.program,
+                studyProgram: parsedProgram.studyProgram,
+                semester: parsedProgram.semester,
+                status,
+              }
             : s
         )
       );
@@ -162,9 +187,12 @@ export default function StudentsPage() {
         id: crypto.randomUUID(),
         name: trimmedName,
         email: trimmedEmail,
-        program: trimmedProgram || DEFAULT_PROGRAM,
+        program: parsedProgram.program,
+        studyProgram: parsedProgram.studyProgram,
+        semester: parsedProgram.semester,
         status,
       };
+
       setStudents((prev) => [newStudent, ...prev]);
     }
 
@@ -198,14 +226,14 @@ export default function StudentsPage() {
       </div>
 
       {loadError && (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <p className="error" style={{ marginBottom: 12 }}>
-              {loadError}
-            </p>
-            <button className="btn btnPrimary" onClick={() => void loadStudents()}>
-              Erneut versuchen
-            </button>
-          </div>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="error" style={{ marginBottom: 12 }}>
+            {loadError}
+          </p>
+          <button className="btn btnPrimary" onClick={() => void loadStudents()}>
+            Erneut versuchen
+          </button>
+        </div>
       )}
 
       <div className="tableWrap">
@@ -222,12 +250,12 @@ export default function StudentsPage() {
 
           <tbody>
             {isLoading ? (
-                    <tr>
-                      <td colSpan={5} className="muted" style={{ padding: 16 }}>
-                        Lade Studenten...
-                      </td>
-                    </tr>
-                ) : students.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted" style={{ padding: 16 }}>
+                  Lade Studenten...
+                </td>
+              </tr>
+            ) : students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="muted" style={{ padding: 16 }}>
                   Keine Studenten vorhanden.
@@ -255,7 +283,7 @@ export default function StudentsPage() {
                         aria-expanded={openMenuId === s.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          anchorBtnRef.current = e.currentTarget; // anchor for portal positioning
+                          anchorBtnRef.current = e.currentTarget;
                           updateMenuPos();
                           setOpenMenuId((prev) => (prev === s.id ? null : s.id));
                         }}
@@ -271,7 +299,6 @@ export default function StudentsPage() {
         </table>
       </div>
 
-      {/* Portal menu rendered outside the table so it can't get clipped */}
       {mounted && openMenuId && menuPos && activeStudent
         ? createPortal(
             <div
