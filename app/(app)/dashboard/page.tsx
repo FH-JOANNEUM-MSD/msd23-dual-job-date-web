@@ -20,6 +20,13 @@ export default function DashboardPage() {
           <p>Liste ansehen, hinzufügen, bearbeiten und löschen.</p>
           <Link href="/students">Öffnen</Link>
         </div>
+
+        <div className="card">
+          <h3>Termine</h3>
+          <p>Job-Dating Termine verwalten.</p>
+          <Link href="/events">Öffnen</Link>
+        </div>
+
       </div>
     </>
   );
