@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
 import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
 
@@ -32,10 +33,29 @@ function parseProgramInput(
   };
 }
 
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function parseImportedStatus(value: unknown): StudentStatus {
+  if (typeof value === "boolean") return value ? "Aktiv" : "Inaktiv";
+  if (typeof value === "number") return value === 1 ? "Aktiv" : "Inaktiv";
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["aktiv", "active", "1", "true", "yes", "ja"].includes(normalized)) {
+      return "Aktiv";
+    }
+  }
+  return "Inaktiv";
+}
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importInfo, setImportInfo] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -207,6 +227,94 @@ export default function StudentsPage() {
     setStudents((prev) => prev.filter((x) => x.id !== id));
   }
 
+  async function onImportExcel(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportInfo(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+
+      if (!sheet) {
+        throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
+      }
+
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: "",
+      });
+
+      if (rows.length < 2) {
+        throw new Error("Bitte eine Excel-Datei mit Header und mindestens einer Zeile hochladen.");
+      }
+
+      const headers = (rows[0] as unknown[]).map((cell) => normalizeHeader(String(cell ?? "")));
+      const headerIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
+
+      const hasStudyProgram = headerIndex.studyprogram !== undefined;
+      const hasSemester = headerIndex.semester !== undefined;
+      if (!hasStudyProgram || !hasSemester) {
+        throw new Error(
+          "Fehlende Spalten. Erwartet werden mindestens: study_program und semester."
+        );
+      }
+
+      const importedStudents: Student[] = [];
+
+      for (let i = 1; i < rows.length; i += 1) {
+        const row = rows[i] as unknown[];
+        const getCell = (column: string): string => {
+          const index = headerIndex[column];
+          return index === undefined ? "" : String(row[index] ?? "").trim();
+        };
+
+        const studyProgram = getCell("studyprogram");
+        const semesterRaw = getCell("semester");
+        if (!studyProgram && !semesterRaw) continue;
+
+        const semesterNumber = Number(semesterRaw);
+        const semester = Number.isFinite(semesterNumber) ? semesterNumber : null;
+        const program = semester ? `${studyProgram} (Semester ${semester})` : studyProgram;
+
+        const firstName = getCell("firstname");
+        const lastName = getCell("lastname");
+        const nameFromColumn = getCell("name");
+        const name = `${firstName} ${lastName}`.trim() || nameFromColumn || "Unbekannt";
+
+        const email = getCell("email") || getCell("emailadresse") || getCell("mail");
+        const statusValue = getCell("status");
+
+        importedStudents.push({
+          id: crypto.randomUUID(),
+          name,
+          email,
+          program: program || DEFAULT_PROGRAM,
+          studyProgram: studyProgram || DEFAULT_PROGRAM,
+          semester,
+          status: parseImportedStatus(statusValue || "aktiv"),
+        });
+      }
+
+      if (importedStudents.length === 0) {
+        throw new Error("Keine verwertbaren Zeilen in der Excel-Datei gefunden.");
+      }
+
+      setStudents(importedStudents);
+      setImportInfo(`${importedStudents.length} Studenten erfolgreich aus Excel importiert.`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
+      setImportError(message);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   const activeStudent = students.find((x) => x.id === openMenuId) ?? null;
 
   return (
@@ -216,6 +324,16 @@ export default function StudentsPage() {
           <h2 style={{ margin: 0 }}>Studenten</h2>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={(e) => void onImportExcel(e)}
+          />
+          <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
+            Excel importieren
+          </button>
           <button className="btn btnGhost" onClick={() => void loadStudents()}>
             Neu laden
           </button>
@@ -233,6 +351,18 @@ export default function StudentsPage() {
           <button className="btn btnPrimary" onClick={() => void loadStudents()}>
             Erneut versuchen
           </button>
+        </div>
+      )}
+
+      {importError && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="error" style={{ margin: 0 }}>{importError}</p>
+        </div>
+      )}
+
+      {importInfo && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>{importInfo}</p>
         </div>
       )}
 
