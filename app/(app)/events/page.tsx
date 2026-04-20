@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { getStudents, Student } from "@/lib/studentsApi";
 import { getCompanies, Company } from "@/lib/companiesApi";
 import { JobDatingEvent, useEventsStore } from "@/lib/eventsStore";
+import { loadSeedPreferences } from "@/lib/testData/localPreferenceSeed";
+import type { Preference, PreferenceType } from "@/lib/testData/testPreferences";
 
 type AssignmentDraft = {
   companyId: string;
@@ -25,11 +27,131 @@ function generateSlots(startTime: string, count: number, durationMinutes: number
   });
 }
 
+function preferenceKey(studentId: string, companyId: string) {
+  return `${studentId}::${companyId}`;
+}
+
+function preferenceScore(type: PreferenceType): number {
+  if (type === "like") return 2;
+  if (type === "neutral") return 1;
+  return -9999; // dislike should never be assigned
+}
+
+function generateAutomaticAssignments(
+  students: Student[],
+  companies: Company[],
+  slots: string[],
+  preferences: Preference[]
+): Record<string, AssignmentDraft> {
+  if (students.length === 0 || companies.length === 0 || slots.length === 0) {
+    return {};
+  }
+
+  const prefMap = new Map<string, PreferenceType>();
+  preferences.forEach((pref) => {
+    prefMap.set(preferenceKey(pref.student_id, pref.company_id), pref.preference_type);
+  });
+
+  const companyLoads = new Map<string, number>();
+  companies.forEach((company) => {
+    companyLoads.set(company.id, 0);
+  });
+
+  const usedSeats = new Set<string>();
+  const result: Record<string, AssignmentDraft> = {};
+
+  const orderedStudents = [...students]
+    .map((student) => {
+      const allowedCompanies = companies.filter((company) => {
+        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+        return pref !== "dislike";
+      });
+
+      const likeCount = companies.filter((company) => {
+        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+        return pref === "like";
+      }).length;
+
+      return {
+        student,
+        allowedCount: allowedCompanies.length,
+        likeCount,
+      };
+    })
+    .sort((a, b) => {
+      if (a.allowedCount !== b.allowedCount) return a.allowedCount - b.allowedCount;
+      if (a.likeCount !== b.likeCount) return a.likeCount - b.likeCount;
+      return a.student.name.localeCompare(b.student.name);
+    });
+
+  for (const entry of orderedStudents) {
+    const { student } = entry;
+
+    const rankedCandidates = companies
+  .map((company) => {
+    const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+
+    if (pref === "dislike") {
+      return null;
+    }
+
+    const nextFreeSlot = slots.find(
+      (slot) => !usedSeats.has(`${company.id}::${slot}`)
+    );
+
+    if (!nextFreeSlot) {
+      return null;
+    }
+
+    return {
+      company,
+      pref,
+      score: preferenceScore(pref),
+      currentLoad: companyLoads.get(company.id) ?? 0,
+      slot: nextFreeSlot,
+    };
+  })
+  .filter(
+    (
+      candidate
+    ): candidate is {
+      company: Company;
+      pref: "like" | "neutral";
+      score: number;
+      currentLoad: number;
+      slot: string;
+    } => candidate !== null
+  )
+  .sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.currentLoad !== b.currentLoad) return a.currentLoad - b.currentLoad;
+    if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
+    return a.company.name.localeCompare(b.company.name);
+  });
+
+    const chosen = rankedCandidates[0];
+    if (!chosen) {
+      continue; // acceptable that a student remains unmatched
+    }
+
+    result[student.id] = {
+      companyId: chosen.company.id,
+      slot: chosen.slot,
+    };
+
+    usedSeats.add(`${chosen.company.id}::${chosen.slot}`);
+    companyLoads.set(chosen.company.id, chosen.currentLoad + 1);
+  }
+
+  return result;
+}
+
 export default function EventsPage() {
   const { events, addEvent, removeEvent } = useEventsStore();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +164,7 @@ export default function EventsPage() {
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(15);
 
   const [assignments, setAssignments] = useState<Record<string, AssignmentDraft>>({});
+  const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -56,6 +179,7 @@ export default function EventsPage() {
 
         setStudents(studentsData);
         setCompanies(companiesData);
+        setPreferences(loadSeedPreferences());
 
         const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
         const firstSemester =
@@ -71,7 +195,7 @@ export default function EventsPage() {
       }
     }
 
-    load();
+    void load();
   }, []);
 
   const studyPrograms = useMemo(() => {
@@ -105,6 +229,25 @@ export default function EventsPage() {
       setSemester(semestersForProgram[0]);
     }
   }, [studyProgram, semestersForProgram, semester]);
+
+  const autoAssignments = useMemo(() => {
+    return generateAutomaticAssignments(filteredStudents, companies, slots, preferences);
+  }, [filteredStudents, companies, slots, preferences]);
+
+  useEffect(() => {
+    setAssignments(autoAssignments);
+
+    const matchedCount = Object.keys(autoAssignments).length;
+    const unmatchedCount = filteredStudents.length - matchedCount;
+
+    if (filteredStudents.length > 0) {
+      setMatchingInfo(
+        `${matchedCount} Studenten automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
+      );
+    } else {
+      setMatchingInfo(null);
+    }
+  }, [autoAssignments, filteredStudents]);
 
   function updateAssignment(student: Student, patch: Partial<AssignmentDraft>) {
     setAssignments((prev) => ({
@@ -158,7 +301,7 @@ export default function EventsPage() {
       .filter(Boolean);
 
     if (builtAssignments.length === 0) {
-      setError("Bitte mindestens einen Studenten einem Unternehmen und Slot zuweisen.");
+      setError("Es konnte kein gültiges Matching erzeugt werden.");
       return;
     }
 
@@ -176,7 +319,6 @@ export default function EventsPage() {
 
     addEvent(event);
     setError(null);
-    setAssignments({});
     setTitle("");
     setDate("");
   }
@@ -187,7 +329,7 @@ export default function EventsPage() {
         <div>
           <h2 style={{ margin: 0 }}>Termine</h2>
           <p className="muted" style={{ margin: "6px 0 0" }}>
-            Job-Dating-Events erstellen und Studenten manuell Unternehmen zuweisen.
+            Job-Dating-Events erstellen und Studenten automatisch oder manuell Unternehmen zuweisen.
           </p>
         </div>
       </div>
@@ -267,6 +409,12 @@ export default function EventsPage() {
           {slots.length > 0 ? slots.join(", ") : "Keine"}
         </div>
 
+        {matchingInfo && (
+          <div style={{ marginTop: 10 }}>
+            <strong>Matching:</strong> {matchingInfo}
+          </div>
+        )}
+
         {error && <p className="error">{error}</p>}
 
         <div className="formFooter">
@@ -308,7 +456,7 @@ export default function EventsPage() {
                         updateAssignment(student, { companyId: e.target.value })
                       }
                     >
-                      <option value="">Bitte wählen</option>
+                      <option value="">Keine Zuordnung</option>
                       {companies.map((company) => (
                         <option key={company.id} value={company.id}>
                           {company.name}
@@ -324,7 +472,7 @@ export default function EventsPage() {
                         updateAssignment(student, { slot: e.target.value })
                       }
                     >
-                      <option value="">Bitte wählen</option>
+                      <option value="">Keine Zuordnung</option>
                       {slots.map((slot) => (
                         <option key={slot} value={slot}>
                           {slot}
