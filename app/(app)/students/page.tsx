@@ -6,6 +6,10 @@ import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
 import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
 
+// TEST DATA TODO: REMOVE LATER
+import { seedTestStudents, clearSeedStudents } from "@/lib/testData/localStudentSeed";
+// ----------------------------
+
 const DEFAULT_PROGRAM = "Mobile Software Development";
 
 function isValidEmail(email: string) {
@@ -323,6 +327,21 @@ export default function StudentsPage() {
         <div>
           <h2 style={{ margin: 0 }}>Studenten</h2>
         </div>
+
+        {/* LOAD DEBUG DATA (TODO: REMOVE LATER) */}
+        <button
+          className="btn btnGhost"
+          onClick={() => {
+            seedTestStudents();
+            setImportInfo("Testdaten wurden geladen.");
+            setImportError(null);
+            void loadStudents();
+          }}
+        >
+          Testdaten laden
+        </button>
+        {/* ------------------------------ */}
+
         <div style={{ display: "flex", gap: 12 }}>
           <input
             ref={fileInputRef}

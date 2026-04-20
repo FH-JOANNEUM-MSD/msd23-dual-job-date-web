@@ -75,8 +75,32 @@ function mapStudent(dto: StudentApiDto): Student {
   };
 }
 
-export async function getStudents(): Promise<Student[]> {
+// Original version to be used in production
+
+/*export async function getStudents(): Promise<Student[]> {
   const data = await apiFetch<StudentApiDto[]>("/api/backend/students");
   if (!Array.isArray(data)) return [];
   return data.map(mapStudent);
+}*/
+
+// Version that loads test data TODO: REMOVE AFTER TESTING
+export async function getStudents(): Promise<Student[]> {
+  const data = await apiFetch<StudentApiDto[]>("/api/backend/students");
+  const backendStudents = Array.isArray(data) ? data.map(mapStudent) : [];
+
+  const seededStudents = loadSeedStudents();
+
+  const merged = [...backendStudents];
+
+  for (const seeded of seededStudents) {
+    if (!merged.some((s) => s.id === seeded.id)) {
+      merged.push(seeded);
+    }
+  }
+
+  return merged;
 }
+
+import { loadSeedStudents } from "@/lib/testData/localStudentSeed";
+
+// -----------------------------------------------------------------
