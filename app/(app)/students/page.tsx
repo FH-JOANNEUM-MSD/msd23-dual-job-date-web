@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
+import { inviteStudent } from "@/lib/inviteApi";
 import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
 
 const DEFAULT_PROGRAM = "Mobile Software Development";
@@ -135,6 +136,7 @@ export default function StudentsPage() {
   const [email, setEmail] = useState("");
   const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [status, setStatus] = useState<StudentStatus>("Aktiv");
+  const [inviteSemester, setInviteSemester] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = useMemo(() => editingId !== null, [editingId]);
@@ -145,6 +147,7 @@ export default function StudentsPage() {
     setName("");
     setEmail("");
     setProgram(DEFAULT_PROGRAM);
+    setInviteSemester("1");
     setStatus("Aktiv");
     setError(null);
     dialogRef.current?.showModal();
@@ -166,7 +169,7 @@ export default function StudentsPage() {
     setError(null);
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -174,19 +177,20 @@ export default function StudentsPage() {
     const trimmedEmail = email.trim();
     const trimmedProgram = program.trim();
 
-    if (!trimmedName) return setError("Bitte Name eingeben.");
     if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
     if (!isValidEmail(trimmedEmail)) return setError("Bitte eine gültige E-Mail eingeben.");
-    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
-
-    const emailTaken = students.some(
-      (s) => s.email.toLowerCase() === trimmedEmail.toLowerCase() && s.id !== editingId
-    );
-    if (emailTaken) return setError("Diese E-Mail ist bereits vergeben.");
-
-    const parsedProgram = parseProgramInput(trimmedProgram);
 
     if (editingId) {
+      if (!trimmedName) return setError("Bitte Name eingeben.");
+      if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
+
+      const emailTaken = students.some(
+        (s) => s.email.toLowerCase() === trimmedEmail.toLowerCase() && s.id !== editingId
+      );
+      if (emailTaken) return setError("Diese E-Mail ist bereits vergeben.");
+
+      const parsedProgram = parseProgramInput(trimmedProgram);
+
       setStudents((prev) =>
         prev.map((s) =>
           s.id === editingId
@@ -202,21 +206,33 @@ export default function StudentsPage() {
             : s
         )
       );
-    } else {
-      const newStudent: Student = {
-        id: crypto.randomUUID(),
-        name: trimmedName,
-        email: trimmedEmail,
-        program: parsedProgram.program,
-        studyProgram: parsedProgram.studyProgram,
-        semester: parsedProgram.semester,
-        status,
-      };
 
-      setStudents((prev) => [newStudent, ...prev]);
+      closeDialog();
+      return;
     }
 
-    closeDialog();
+    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
+
+    const semesterNumber = Number(inviteSemester);
+    if (!Number.isFinite(semesterNumber) || semesterNumber < 1) {
+      return setError("Bitte ein gültiges Semester eingeben.");
+    }
+
+    try {
+      await inviteStudent({
+        email: trimmedEmail,
+        studyProgram: trimmedProgram,
+        semester: semesterNumber,
+      });
+
+      setImportInfo(`Einladung an ${trimmedEmail} wurde versendet.`);
+      closeDialog();
+      void loadStudents();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : "Einladung konnte nicht versendet werden.";
+      setError(message);
+    }
   }
 
   function onDelete(id: string) {
@@ -338,7 +354,7 @@ export default function StudentsPage() {
             Neu laden
           </button>
           <button className="btn btnPrimary" onClick={openAddDialog}>
-            + Student hinzufügen
+            + Studierende einladen
           </button>
         </div>
       </div>
@@ -476,48 +492,84 @@ export default function StudentsPage() {
       >
         <form method="dialog" className="dialogInner" onSubmit={onSubmit}>
           <div className="dialogHeader">
-            <h3 style={{ margin: 0 }}>{isEditing ? "Student bearbeiten" : "Student hinzufügen"}</h3>
+            <h3 style={{ margin: 0 }}>{isEditing ? "Studierende bearbeiten" : "Studierende einladen"}</h3>
             <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
               ✕
             </button>
           </div>
 
           <div className="grid">
-            <label className="field">
-              <span>Name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z.B. Max Mustermann"
-                autoFocus
-              />
-            </label>
+            {isEditing ? (
+              <>
+                <label className="field">
+                  <span>Name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="z.B. Max Mustermann"
+                    autoFocus
+                  />
+                </label>
 
-            <label className="field">
-              <span>Email</span>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="z.B. max.mustermann@fh-joanneum.at"
-              />
-            </label>
+                <label className="field">
+                  <span>Email</span>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="z.B. max.mustermann@fh-joanneum.at"
+                  />
+                </label>
 
-            <label className="field">
-              <span>Akademisches Programm</span>
-              <input
-                value={program}
-                onChange={(e) => setProgram(e.target.value)}
-                placeholder={DEFAULT_PROGRAM}
-              />
-            </label>
+                <label className="field">
+                  <span>Akademisches Programm</span>
+                  <input
+                    value={program}
+                    onChange={(e) => setProgram(e.target.value)}
+                    placeholder={DEFAULT_PROGRAM}
+                  />
+                </label>
 
-            <label className="field">
-              <span>Status</span>
-              <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
-                <option value="Aktiv">Aktiv</option>
-                <option value="Inaktiv">Inaktiv</option>
-              </select>
-            </label>
+                <label className="field">
+                  <span>Status</span>
+                  <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
+                    <option value="Aktiv">Aktiv</option>
+                    <option value="Inaktiv">Inaktiv</option>
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="field">
+                  <span>E-Mail</span>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="z.B. student@example.com"
+                    autoFocus
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Akademisches Programm</span>
+                  <input
+                    value={program}
+                    onChange={(e) => setProgram(e.target.value)}
+                    placeholder={DEFAULT_PROGRAM}
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Semester</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={inviteSemester}
+                    onChange={(e) => setInviteSemester(e.target.value)}
+                    placeholder="z.B. 2"
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           {error && <p className="error">{error}</p>}
@@ -527,7 +579,7 @@ export default function StudentsPage() {
               Abbrechen
             </button>
             <button type="submit" className="btn btnPrimary">
-              {isEditing ? "Speichern" : "Hinzufügen"}
+              {isEditing ? "Speichern" : "Einladung senden"}
             </button>
           </div>
         </form>
