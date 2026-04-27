@@ -10,7 +10,6 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   color: var(--text);
   background: white;
 }
@@ -37,10 +36,11 @@ body {
 }
 
 .logo {
-  width: 56px;
-  height: 56px;
+  width: auto;
+  height: 80px;
+  max-width: min(260px, 42vw);
   border-radius: 12px;
-  background: linear-gradient(135deg, #22c55e, #0ea5e9);
+  object-fit: contain;
 }
 
 .brand h1 {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -22,7 +23,14 @@ export default function TopNav() {
     <header className="topbar">
       <div className="topbar-inner">
         <div className="brand">
-          <div className="logo" aria-hidden="true" />
+          <Image
+            className="logo"
+            src="/IIT_RGB.png"
+            alt="FH JOANNEUM Logo"
+            width={212}
+            height={112}
+            priority
+          />
           <div>
             <h1>Dual Job Dating</h1>
             <p>Web-Portal</p>
