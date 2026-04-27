@@ -5,7 +5,13 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
 import { inviteStudent } from "@/lib/inviteApi";
-import { getStudents, type Student, type StudentStatus } from "@/lib/studentsApi";
+import {
+  getStudents,
+  updateStudent,
+  deleteStudent,
+  type Student,
+  type StudentStatus,
+} from "@/lib/studentsApi";
 
 const DEFAULT_PROGRAM = "Mobile Software Development";
 
@@ -13,25 +19,11 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-function parseProgramInput(
-  input: string
-): { program: string; studyProgram: string; semester: number | null } {
-  const trimmed = input.trim() || DEFAULT_PROGRAM;
-
-  const match = trimmed.match(/^(.*)\s+\(Semester\s+(\d+)\)$/i);
-  if (match) {
-    return {
-      program: trimmed,
-      studyProgram: match[1].trim(),
-      semester: Number(match[2]),
-    };
-  }
-
-  return {
-    program: trimmed,
-    studyProgram: trimmed,
-    semester: null,
-  };
+function clampSemester(value: number) {
+  if (!Number.isFinite(value)) return 1;
+  if (value < 1) return 1;
+  if (value > 8) return 8;
+  return value;
 }
 
 function normalizeHeader(value: string): string {
@@ -42,15 +34,30 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importInfo, setImportInfo] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const anchorBtnRef = useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
+
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [program, setProgram] = useState(DEFAULT_PROGRAM);
+  const [semester, setSemester] = useState(1);
+  const [status, setStatus] = useState<StudentStatus>("Aktiv");
+  const [error, setError] = useState<string | null>(null);
+
+  const isEditing = useMemo(() => editingId !== null, [editingId]);
 
   React.useEffect(() => setMounted(true), []);
 
@@ -63,7 +70,7 @@ export default function StudentsPage() {
       setStudents(data);
     } catch (error) {
       const message =
-        error instanceof ApiError ? error.message : "Studierende konnten nicht geladen werden.";
+          error instanceof ApiError ? error.message : "Studierende konnten nicht geladen werden.";
       setLoadError(message);
     } finally {
       setIsLoading(false);
@@ -84,9 +91,7 @@ export default function StudentsPage() {
   React.useEffect(() => {
     function onDocumentClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
-      if (!target?.closest?.("[data-kebab-root]")) {
-        setOpenMenuId(null);
-      }
+      if (!target?.closest?.("[data-kebab-root]")) setOpenMenuId(null);
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -95,6 +100,7 @@ export default function StudentsPage() {
 
     document.addEventListener("click", onDocumentClick);
     document.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.removeEventListener("click", onDocumentClick);
       document.removeEventListener("keydown", onKeyDown);
@@ -116,28 +122,16 @@ export default function StudentsPage() {
     };
   }, [openMenuId]);
 
-  // dialog + form state
-  const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [program, setProgram] = useState(DEFAULT_PROGRAM);
-  const [status, setStatus] = useState<StudentStatus>("Aktiv");
-  const [inviteSemester, setInviteSemester] = useState("1");
-  const [error, setError] = useState<string | null>(null);
-
-  const isEditing = useMemo(() => editingId !== null, [editingId]);
-
   function openAddDialog() {
     setOpenMenuId(null);
     setEditingId(null);
     setName("");
     setEmail("");
     setProgram(DEFAULT_PROGRAM);
-    setInviteSemester("1");
+    setSemester(1);
     setStatus("Aktiv");
     setError(null);
+    setInfo(null);
     dialogRef.current?.showModal();
   }
 
@@ -146,9 +140,11 @@ export default function StudentsPage() {
     setEditingId(s.id);
     setName(s.name);
     setEmail(s.email);
-    setProgram(s.program);
+    setProgram(s.studyProgram);
+    setSemester(s.semester ?? 1);
     setStatus(s.status);
     setError(null);
+    setInfo(null);
     dialogRef.current?.showModal();
   }
 
@@ -160,77 +156,59 @@ export default function StudentsPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
 
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedProgram = program.trim();
+    const safeSemester = clampSemester(Number(semester));
 
-    if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
-    if (!isValidEmail(trimmedEmail)) return setError("Bitte eine gültige E-Mail eingeben.");
+    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
 
-    if (editingId) {
+    if (!isEditing) {
       if (!trimmedName) return setError("Bitte Name eingeben.");
-      if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
+      if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
+      if (!isValidEmail(trimmedEmail)) return setError("Bitte eine gültige E-Mail eingeben.");
 
-      const emailTaken = students.some(
-        (s) => s.email.toLowerCase() === trimmedEmail.toLowerCase() && s.id !== editingId
-      );
-      if (emailTaken) return setError("Diese E-Mail ist bereits vergeben.");
+      try {
+        await inviteStudent({
+          email: trimmedEmail,
+          fullName: trimmedName,
+          studyProgram: trimmedProgram,
+          semester: safeSemester,
+        });
 
-      const parsedProgram = parseProgramInput(trimmedProgram);
+        await loadStudents();
+        setInfo("Einladung wurde erfolgreich versendet.");
+        closeDialog();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Einladung fehlgeschlagen.");
+      }
 
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === editingId
-            ? {
-                ...s,
-                name: trimmedName,
-                email: trimmedEmail,
-                program: parsedProgram.program,
-                studyProgram: parsedProgram.studyProgram,
-                semester: parsedProgram.semester,
-                status,
-              }
-            : s
-        )
-      );
-
-      closeDialog();
       return;
     }
 
     if (!trimmedName) return setError("Bitte Name eingeben.");
-    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
 
-    const semesterNumber = Number(inviteSemester);
-    if (!Number.isFinite(semesterNumber) || semesterNumber < 1) {
-      return setError("Bitte ein gültiges Semester eingeben.");
-    }
+    const parts = trimmedName.split(/\s+/);
+    const first_name = parts[0] ?? "";
+    const last_name = parts.slice(1).join(" ");
 
     try {
-      await inviteStudent({
-        email: trimmedEmail,
-        fullName: trimmedName,
-        studyProgram: trimmedProgram,
-        semester: semesterNumber,
+      await updateStudent(editingId!, {
+        first_name,
+        last_name,
+        study_program: trimmedProgram,
+        semester: safeSemester,
+        email: trimmedEmail || undefined,
       });
 
-      setImportInfo(`Einladung an ${trimmedEmail} wurde versendet.`);
+      await loadStudents();
+      setInfo("Studierende wurden erfolgreich aktualisiert.");
       closeDialog();
-      void loadStudents();
-    } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : "Einladung konnte nicht versendet werden.";
-      setError(message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
     }
-  }
-
-  function onDelete(id: string) {
-    const s = students.find((x) => x.id === id);
-    if (!s) return;
-    const ok = confirm(`Student "${s.name}" wirklich löschen?`);
-    if (!ok) return;
-    setStudents((prev) => prev.filter((x) => x.id !== id));
   }
 
   async function onImportExcel(event: React.ChangeEvent<HTMLInputElement>) {
@@ -238,7 +216,7 @@ export default function StudentsPage() {
     if (!file) return;
 
     setImportError(null);
-    setImportInfo(null);
+    setInfo(null);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -246,9 +224,7 @@ export default function StudentsPage() {
       const firstSheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[firstSheetName];
 
-      if (!sheet) {
-        throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
-      }
+      if (!sheet) throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
 
       const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
         header: 1,
@@ -261,14 +237,6 @@ export default function StudentsPage() {
 
       const headers = (rows[0] as unknown[]).map((cell) => normalizeHeader(String(cell ?? "")));
       const headerIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
-
-      const hasStudyProgram = headerIndex.studyprogram !== undefined;
-      const hasSemester = headerIndex.semester !== undefined;
-      if (!hasStudyProgram || !hasSemester) {
-        throw new Error(
-          "Fehlende Spalten. Erwartet werden mindestens: study_program und semester."
-        );
-      }
 
       type InviteRow = {
         fullName: string;
@@ -288,27 +256,26 @@ export default function StudentsPage() {
           return index === undefined ? "" : String(row[index] ?? "").trim();
         };
 
-        const studyProgram = getCell("studyprogram");
-        const semesterRaw = getCell("semester");
         const firstName = getCell("firstname");
         const lastName = getCell("lastname");
         const nameFromColumn = getCell("name");
         const fullName = `${firstName} ${lastName}`.trim() || nameFromColumn || "";
+
         const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
-
-        if (!studyProgram && !semesterRaw && !fullName && !emailValue) {
-          continue;
-        }
-
+        const studyProgram = getCell("studyprogram");
+        const semesterRaw = getCell("semester");
         const semesterNumber = Number(semesterRaw);
 
+        if (!fullName && !emailValue && !studyProgram && !semesterRaw) continue;
+
         if (
-          !fullName ||
-          !emailValue ||
-          !isValidEmail(emailValue) ||
-          !studyProgram ||
-          !Number.isFinite(semesterNumber) ||
-          semesterNumber < 1
+            !fullName ||
+            !emailValue ||
+            !isValidEmail(emailValue) ||
+            !studyProgram ||
+            !Number.isFinite(semesterNumber) ||
+            semesterNumber < 1 ||
+            semesterNumber > 8
         ) {
           skippedRows += 1;
           continue;
@@ -334,266 +301,316 @@ export default function StudentsPage() {
           await inviteStudent(inviteRow);
           successCount += 1;
         } catch (error) {
-          const message =
-            error instanceof ApiError ? error.message : "Einladung fehlgeschlagen";
+          const message = error instanceof ApiError ? error.message : "Einladung fehlgeschlagen";
           failed.push(`${inviteRow.email}: ${message}`);
         }
       }
 
-      if (successCount > 0) {
-        await loadStudents();
-      }
+      if (successCount > 0) await loadStudents();
 
-      setImportInfo(
-        `${successCount} Einladungen versendet.${skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""}`
+      setInfo(
+          `${successCount} Einladungen versendet.${
+              skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""
+          }`
       );
 
       if (failed.length > 0) {
         const preview = failed.slice(0, 3).join(" | ");
         setImportError(
-          `${failed.length} Einladungen fehlgeschlagen.${preview ? ` Beispiele: ${preview}` : ""}`
+            `${failed.length} Einladungen fehlgeschlagen.${
+                preview ? ` Beispiele: ${preview}` : ""
+            }`
         );
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
+          error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
       setImportError(message);
     } finally {
       event.target.value = "";
     }
   }
 
+  function openDeleteDialog(id: string) {
+    setDeleteId(id);
+    setOpenMenuId(null);
+    deleteDialogRef.current?.showModal();
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+
+    try {
+      await deleteStudent(deleteId);
+      await loadStudents();
+      setInfo("Studierende wurden erfolgreich gelöscht.");
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
+    } finally {
+      deleteDialogRef.current?.close();
+      setDeleteId(null);
+    }
+  }
+
   const activeStudent = students.find((x) => x.id === openMenuId) ?? null;
+  const deleteStudentItem = students.find((x) => x.id === deleteId) ?? null;
 
   return (
-    <>
-      <div className="pageHeader">
-        <div>
-          <h2 style={{ margin: 0 }}>Studierende</h2>
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: "none" }}
-            onChange={(e) => void onImportExcel(e)}
-          />
-          <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
-            Excel importieren
-          </button>
-          <button className="btn btnGhost" onClick={() => void loadStudents()}>
-            Neu laden
-          </button>
-          <button className="btn btnPrimary" onClick={openAddDialog}>
-            + Studierende einladen
-          </button>
-        </div>
-      </div>
+      <>
+        <div className="pageHeader">
+          <div>
+            <h2 style={{ margin: 0 }}>Studierende</h2>
+          </div>
 
-      {loadError && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p className="error" style={{ marginBottom: 12 }}>
-            {loadError}
-          </p>
-          <button className="btn btnPrimary" onClick={() => void loadStudents()}>
-            Erneut versuchen
-          </button>
-        </div>
-      )}
+          <div style={{ display: "flex", gap: 12 }}>
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                style={{ display: "none" }}
+                onChange={(e) => void onImportExcel(e)}
+            />
 
-      {importError && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p className="error" style={{ margin: 0 }}>{importError}</p>
-        </div>
-      )}
+            <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
+              Excel importieren
+            </button>
 
-      {importInfo && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p style={{ margin: 0 }}>{importInfo}</p>
-        </div>
-      )}
+            <button className="btn btnGhost" onClick={() => void loadStudents()}>
+              Neu laden
+            </button>
 
-      <div className="tableWrap">
-        <table className="table">
-          <thead>
+            <button className="btn btnPrimary" onClick={openAddDialog}>
+              + Studierende einladen
+            </button>
+          </div>
+        </div>
+
+        {loadError && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p className="error" style={{ marginBottom: 12 }}>
+                {loadError}
+              </p>
+              <button className="btn btnPrimary" onClick={() => void loadStudents()}>
+                Erneut versuchen
+              </button>
+            </div>
+        )}
+
+        {importError && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p className="error" style={{ margin: 0 }}>
+                {importError}
+              </p>
+            </div>
+        )}
+
+        {info && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p style={{ margin: 0 }}>{info}</p>
+            </div>
+        )}
+
+        <div className="tableWrap">
+          <table className="table">
+            <thead>
             <tr>
-              <th style={{ width: "22%" }}>Name</th>
-              <th style={{ width: "26%" }}>Email</th>
+              <th style={{ width: "24%" }}>Name</th>
+              <th style={{ width: "22%" }}>E-Mail</th>
               <th style={{ width: "28%" }}>Akademisches Programm</th>
-              <th style={{ width: "12%" }}>Status</th>
-              <th style={{ width: "12%" }}>Aktionen</th>
+              <th style={{ width: "10%" }}>Semester</th>
+              <th style={{ width: "8%" }}>Status</th>
+              <th style={{ width: "8%" }}>Aktionen</th>
             </tr>
-          </thead>
+            </thead>
 
-          <tbody>
+            <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={5} className="muted" style={{ padding: 16 }}>
-                  Lade Studierende...
-                </td>
-              </tr>
+                <tr>
+                  <td colSpan={6} className="muted" style={{ padding: 16 }}>
+                    Lade Studierende...
+                  </td>
+                </tr>
             ) : students.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="muted" style={{ padding: 16 }}>
-                  Keine Studierende vorhanden.
-                </td>
-              </tr>
+                <tr>
+                  <td colSpan={6} className="muted" style={{ padding: 16 }}>
+                    Keine Studierende vorhanden.
+                  </td>
+                </tr>
             ) : (
-              students.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.name}</td>
-                  <td>{s.email || <span className="muted">Nicht angegeben</span>}</td>
-                  <td>{s.program}</td>
-                  <td>
+                students.map((s) => (
+                    <tr key={s.id}>
+                      <td>{s.name}</td>
+                      <td>{s.email || <span className="muted">Nicht angegeben</span>}</td>
+                      <td>{s.studyProgram}</td>
+                      <td>{s.semester ?? "—"}</td>
+                      <td>
                     <span className={`pill ${s.status === "Aktiv" ? "pillActive" : "pillInactive"}`}>
                       {s.status}
                     </span>
-                  </td>
+                      </td>
 
-                  <td style={{ textAlign: "right" }}>
-                    <div className="kebab" data-kebab-root>
-                      <button
-                        type="button"
-                        className="kebabBtn"
-                        aria-label="Aktionen"
-                        aria-haspopup="menu"
-                        aria-expanded={openMenuId === s.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          anchorBtnRef.current = e.currentTarget;
-                          updateMenuPos();
-                          setOpenMenuId((prev) => (prev === s.id ? null : s.id));
-                        }}
-                      >
-                        ⋮
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      <td style={{ textAlign: "right" }}>
+                        <div className="kebab" data-kebab-root>
+                          <button
+                              type="button"
+                              className="kebabBtn"
+                              aria-label="Aktionen"
+                              aria-haspopup="menu"
+                              aria-expanded={openMenuId === s.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                anchorBtnRef.current = e.currentTarget;
+                                updateMenuPos();
+                                setOpenMenuId((prev) => (prev === s.id ? null : s.id));
+                              }}
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                ))
             )}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
 
-      {mounted && openMenuId && menuPos && activeStudent
-        ? createPortal(
-            <div
-              className="kebabMenuPortal"
-              data-kebab-root
-              role="menu"
-              aria-label="Aktionen Menü"
-              style={{ top: menuPos.top, left: menuPos.left }}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="kebabItem"
-                onClick={() => {
-                  setOpenMenuId(null);
-                  openEditDialog(activeStudent);
-                }}
-              >
-                Bearbeiten
+        {mounted && openMenuId && menuPos && activeStudent
+            ? createPortal(
+                <div
+                    className="kebabMenuPortal"
+                    data-kebab-root
+                    role="menu"
+                    aria-label="Aktionen Menü"
+                    style={{ top: menuPos.top, left: menuPos.left }}
+                >
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem"
+                      onClick={() => {
+                        setOpenMenuId(null);
+                        openEditDialog(activeStudent);
+                      }}
+                  >
+                    Bearbeiten
+                  </button>
+
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem kebabDanger"
+                      onClick={() => openDeleteDialog(activeStudent.id)}
+                  >
+                    Löschen
+                  </button>
+                </div>,
+                document.body
+            )
+            : null}
+
+        <dialog
+            ref={dialogRef}
+            className="dialog"
+            onClose={() => {
+              setEditingId(null);
+              setError(null);
+            }}
+        >
+          <form method="dialog" className="dialogInner" onSubmit={onSubmit}>
+            <div className="dialogHeader">
+              <h3 style={{ margin: 0 }}>
+                {isEditing ? "Studierende bearbeiten" : "Studierende einladen"}
+              </h3>
+              <button type="button" className="btn btnGhost" onClick={closeDialog}>
+                ✕
+              </button>
+            </div>
+
+            <div className="grid">
+              <label className="field">
+                <span>Name</span>
+                <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="z.B. Max Mustermann"
+                    autoFocus
+                />
+              </label>
+
+              <label className="field">
+                <span>E-Mail</span>
+                <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="z.B. student@example.com"
+                />
+              </label>
+
+              <label className="field">
+                <span>Akademisches Programm</span>
+                <input
+                    value={program}
+                    onChange={(e) => setProgram(e.target.value)}
+                    placeholder={DEFAULT_PROGRAM}
+                />
+              </label>
+
+              <label className="field">
+                <span>Semester</span>
+                <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    value={semester}
+                    onChange={(e) => setSemester(clampSemester(Number(e.target.value)))}
+                />
+              </label>
+
+              {isEditing && (
+                  <label className="field">
+                    <span>Status</span>
+                    <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
+                      <option value="Aktiv">Aktiv</option>
+                      <option value="Inaktiv">Inaktiv</option>
+                    </select>
+                  </label>
+              )}
+            </div>
+
+            {error && <p className="error">{error}</p>}
+
+            <div className="dialogActions">
+              <button type="button" className="btn" onClick={closeDialog}>
+                Abbrechen
+              </button>
+              <button type="submit" className="btn btnPrimary">
+                {isEditing ? "Speichern" : "Einladung senden"}
+              </button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog ref={deleteDialogRef} className="dialog">
+          <div className="dialogInner">
+            <h3>Studierende löschen</h3>
+            <p>
+              Willst du{" "}
+              {deleteStudentItem?.name ? `"${deleteStudentItem.name}"` : "diese Person"} wirklich
+              löschen?
+            </p>
+
+            <div className="dialogActions">
+              <button className="btn" onClick={() => deleteDialogRef.current?.close()}>
+                Abbrechen
               </button>
 
-              <button
-                type="button"
-                role="menuitem"
-                className="kebabItem kebabDanger"
-                onClick={() => {
-                  setOpenMenuId(null);
-                  onDelete(activeStudent.id);
-                }}
-              >
+              <button className="btn btnDanger" onClick={() => void confirmDelete()}>
                 Löschen
               </button>
-            </div>,
-            document.body
-          )
-        : null}
-
-      <dialog
-        ref={dialogRef}
-        className="dialog"
-        onClose={() => {
-          setEditingId(null);
-          setError(null);
-        }}
-      >
-        <form method="dialog" className="dialogInner" onSubmit={onSubmit}>
-          <div className="dialogHeader">
-            <h3 style={{ margin: 0 }}>{isEditing ? "Studierende bearbeiten" : "Studierende einladen"}</h3>
-            <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
-              ✕
-            </button>
+            </div>
           </div>
-
-          <div className="grid">
-            <label className="field">
-              <span>Name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z.B. Max Mustermann"
-                autoFocus
-              />
-            </label>
-
-            <label className="field">
-              <span>E-Mail</span>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="z.B. student@example.com"
-                disabled={isEditing}
-              />
-            </label>
-
-            <label className="field">
-              <span>Akademisches Programm</span>
-              <input
-                value={program}
-                onChange={(e) => setProgram(e.target.value)}
-                placeholder={DEFAULT_PROGRAM}
-              />
-            </label>
-
-            <label className="field">
-              <span>Semester</span>
-              <input
-                type="number"
-                min={1}
-                value={inviteSemester}
-                onChange={(e) => setInviteSemester(e.target.value)}
-                placeholder="z.B. 2"
-              />
-            </label>
-
-            {isEditing && (
-              <label className="field">
-                <span>Status</span>
-                <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
-                  <option value="Aktiv">Aktiv</option>
-                  <option value="Inaktiv">Inaktiv</option>
-                </select>
-              </label>
-            )}
-          </div>
-
-          {error && <p className="error">{error}</p>}
-
-          <div className="dialogActions">
-            <button type="button" className="btn" onClick={closeDialog}>
-              Abbrechen
-            </button>
-            <button type="submit" className="btn btnPrimary">
-              {isEditing ? "Speichern" : "Einladung senden"}
-            </button>
-          </div>
-        </form>
-      </dialog>
-    </>
+        </dialog>
+      </>
   );
 }

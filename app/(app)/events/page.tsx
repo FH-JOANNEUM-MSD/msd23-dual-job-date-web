@@ -447,7 +447,7 @@ export default function EventsPage() {
               filteredStudents.map((student) => (
                 <tr key={student.id}>
                   <td>{student.name}</td>
-                  <td>{student.program}</td>
+                  <td>{student.studyProgram}</td>
                   <td>
                     <select
                       className="tableSelect"

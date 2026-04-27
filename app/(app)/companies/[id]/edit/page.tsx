@@ -1,9 +1,9 @@
-// app/(app)/companies/[id]/edit/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CompanyStatus, useCompaniesStore } from "@/lib/companiesStore";
+import { useCompaniesStore } from "@/lib/companiesStore";
+import { updateCompany, type CompanyStatus } from "@/lib/companiesApi";
 
 function normalizeWebsite(input: string) {
   const v = input.trim();
@@ -27,21 +27,32 @@ export default function EditCompanyPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
 
-  const { getById, update } = useCompaniesStore();
-  const company = useMemo(() => getById(id), [getById, id]);
+  const { getById, isLoading } = useCompaniesStore();
+  const company = getById(id);
 
   const [error, setError] = useState<string | null>(null);
 
   // form state (initialize once company exists)
-  const [name, setName] = useState(company?.name ?? "");
-  const [description, setDescription] = useState(company?.description ?? "");
-  const [program, setProgram] = useState(company?.program ?? "");
-  const [industry, setIndustry] = useState(company?.industry ?? "");
-  const [website, setWebsite] = useState(company?.website ?? "");
-  const [locations, setLocations] = useState(company?.locations ?? "");
-  const [jobDescription, setJobDescription] = useState(company?.jobDescription ?? "");
-  const [status, setStatus] = useState<CompanyStatus>(company?.status ?? "Aktiv");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState("");
+  const [status, setStatus] = useState<CompanyStatus>("Aktiv");
 
+  useEffect(() => {
+    if (!company) return;
+    setName(company.name ?? "");
+    setDescription(company.description ?? "");
+    setWebsite(company.website ?? "");
+    setStatus(company.status ?? "Aktiv");
+  }, [company]);
+
+  if (isLoading) {
+    return (
+        <div className="formCard">
+          <p className="muted">Unternehmen wird geladen...</p>
+        </div>
+    );
+  }
   // If company wasn't ready on first render (rare), handle it:
   if (!company) {
     return (
@@ -55,35 +66,31 @@ export default function EditCompanyPage() {
     );
   }
 
-  function onSave(e: React.FormEvent) {
+  async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     const trimmedName = name.trim();
     const trimmedDesc = description.trim();
-    const trimmedProgram = program.trim();
-    const trimmedIndustry = industry.trim();
     const normalizedWebsite = normalizeWebsite(website);
 
     if (!trimmedName) return setError("Bitte Name des Unternehmens eingeben.");
     if (!trimmedDesc) return setError("Bitte kurze Beschreibung eingeben.");
-    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
-    if (!trimmedIndustry) return setError("Bitte Branche eingeben.");
     if (!normalizedWebsite) return setError("Bitte Website eingeben.");
     if (!isValidUrl(normalizedWebsite)) return setError("Bitte eine gültige Website-URL eingeben.");
 
-    update(id, {
-      name: trimmedName,
-      description: trimmedDesc,
-      program: trimmedProgram,
-      industry: trimmedIndustry,
-      website: normalizedWebsite,
-      locations: locations.trim(),
-      jobDescription: jobDescription.trim(),
-      status,
-    });
+    try {
+      await updateCompany(id, {
+        name: trimmedName,
+        description: trimmedDesc,
+        website: normalizedWebsite,
+        active: status === "Aktiv",
+      });
 
-    router.push("/companies");
+      router.push("/companies");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
+    }
   }
 
   return (
@@ -105,11 +112,6 @@ export default function EditCompanyPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </label>
 
-          <label className="field">
-            <span>Akademisches Programm *</span>
-            <input value={program} onChange={(e) => setProgram(e.target.value)} />
-          </label>
-
           <label className="field formFull">
             <span>Kurze Beschreibung des Unternehmens *</span>
             <textarea
@@ -118,11 +120,6 @@ export default function EditCompanyPage() {
               rows={6}
               placeholder="Kurzbeschreibung…"
             />
-          </label>
-
-          <label className="field">
-            <span>Branche *</span>
-            <input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="z.B. IT" />
           </label>
 
           <label className="field">
@@ -136,21 +133,6 @@ export default function EditCompanyPage() {
               <option value="Aktiv">Aktiv</option>
               <option value="Inaktiv">Inaktiv</option>
             </select>
-          </label>
-
-          <label className="field formFull">
-            <span>Standort(e)</span>
-            <input value={locations} onChange={(e) => setLocations(e.target.value)} placeholder="z.B. Graz, Kapfenberg" />
-          </label>
-
-          <label className="field formFull">
-            <span>Stellenbeschreibung (für die Studierenden)</span>
-            <textarea
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              rows={6}
-              placeholder="Jobbeschreibung…"
-            />
           </label>
         </div>
 

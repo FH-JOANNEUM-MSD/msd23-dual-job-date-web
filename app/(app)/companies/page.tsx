@@ -12,7 +12,7 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-function normalizeHeader(value: string): string {
+function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
@@ -26,12 +26,14 @@ export default function CompaniesPage() {
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [name, setName] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [inviteInfo, setInviteInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
   React.useEffect(() => setMounted(true), []);
@@ -48,12 +50,14 @@ export default function CompaniesPage() {
       const target = e.target as HTMLElement | null;
       if (!target?.closest?.("[data-kebab-root]")) setOpenMenuId(null);
     }
+
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setOpenMenuId(null);
     }
 
     document.addEventListener("click", onDocumentClick);
     document.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.removeEventListener("click", onDocumentClick);
       document.removeEventListener("keydown", onKeyDown);
@@ -65,19 +69,22 @@ export default function CompaniesPage() {
 
     updateMenuPos();
     const onMove = () => updateMenuPos();
+
     window.addEventListener("scroll", onMove, true);
     window.addEventListener("resize", onMove);
+
     return () => {
       window.removeEventListener("scroll", onMove, true);
       window.removeEventListener("resize", onMove);
     };
   }, [openMenuId]);
 
-  function openAddDialog() {
+  function openInviteDialog() {
     setOpenMenuId(null);
-    setName("");
+    setCompanyName("");
     setInviteEmail("");
     setError(null);
+    setInfo(null);
     dialogRef.current?.showModal();
   }
 
@@ -86,12 +93,12 @@ export default function CompaniesPage() {
     setError(null);
   }
 
-  async function onCreate(e: React.FormEvent) {
+  async function onInvite(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setInviteInfo(null);
+    setInfo(null);
 
-    const trimmedName = name.trim();
+    const trimmedName = companyName.trim();
     const trimmedEmail = inviteEmail.trim();
 
     if (!trimmedName) return setError("Bitte Firmenname eingeben.");
@@ -104,12 +111,12 @@ export default function CompaniesPage() {
         companyName: trimmedName,
       });
 
-      setInviteInfo(`Einladung an ${trimmedEmail} wurde versendet.`);
+      setInfo(`Einladung an ${trimmedEmail} wurde versendet.`);
       closeDialog();
-      void refresh();
-    } catch (error) {
+      await refresh();
+    } catch (err) {
       const message =
-        error instanceof ApiError ? error.message : "Einladung konnte nicht versendet werden.";
+          err instanceof ApiError ? err.message : "Einladung konnte nicht versendet werden.";
       setError(message);
     }
   }
@@ -119,7 +126,7 @@ export default function CompaniesPage() {
     if (!file) return;
 
     setImportError(null);
-    setInviteInfo(null);
+    setInfo(null);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -127,9 +134,7 @@ export default function CompaniesPage() {
       const firstSheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[firstSheetName];
 
-      if (!sheet) {
-        throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
-      }
+      if (!sheet) throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
 
       const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
         header: 1,
@@ -159,24 +164,23 @@ export default function CompaniesPage() {
           return index === undefined ? "" : String(row[index] ?? "").trim();
         };
 
-        const companyName =
-          getCell("companyname") ||
-          getCell("firmenname") ||
-          getCell("firma") ||
-          getCell("name");
+        const nameValue =
+            getCell("companyname") ||
+            getCell("firmenname") ||
+            getCell("firma") ||
+            getCell("name");
+
         const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
 
-        if (!companyName && !emailValue) {
-          continue;
-        }
+        if (!nameValue && !emailValue) continue;
 
-        if (!companyName || !emailValue || !isValidEmail(emailValue)) {
+        if (!nameValue || !emailValue || !isValidEmail(emailValue)) {
           skippedRows += 1;
           continue;
         }
 
         inviteRows.push({
-          companyName,
+          companyName: nameValue,
           email: emailValue,
         });
       }
@@ -192,243 +196,295 @@ export default function CompaniesPage() {
         try {
           await inviteCompany(inviteRow);
           successCount += 1;
-        } catch (error) {
-          const message =
-            error instanceof ApiError ? error.message : "Einladung fehlgeschlagen";
+        } catch (err) {
+          const message = err instanceof ApiError ? err.message : "Einladung fehlgeschlagen";
           failed.push(`${inviteRow.email}: ${message}`);
         }
       }
 
-      if (successCount > 0) {
-        await refresh();
-      }
+      if (successCount > 0) await refresh();
 
-      setInviteInfo(
-        `${successCount} Unternehmenseinladungen versendet.${skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""}`
+      setInfo(
+          `${successCount} Unternehmenseinladungen versendet.${
+              skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""
+          }`
       );
 
       if (failed.length > 0) {
         const preview = failed.slice(0, 3).join(" | ");
         setImportError(
-          `${failed.length} Einladungen fehlgeschlagen.${preview ? ` Beispiele: ${preview}` : ""}`
+            `${failed.length} Einladungen fehlgeschlagen.${
+                preview ? ` Beispiele: ${preview}` : ""
+            }`
         );
       }
-    } catch (error) {
+    } catch (err) {
       const message =
-        error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
+          err instanceof Error ? err.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
       setImportError(message);
     } finally {
       event.target.value = "";
     }
   }
 
-  function onDelete(id: string) {
-    const c = companies.find((x) => x.id === id);
-    if (!c) return;
-    const ok = confirm(`Unternehmen "${c.name}" wirklich löschen?`);
-    if (!ok) return;
+  function openDeleteDialog(id: string) {
+    setDeleteId(id);
     setOpenMenuId(null);
-    remove(id);
+    deleteDialogRef.current?.showModal();
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+
+    try {
+      await remove(deleteId);
+      await refresh();
+      setInfo("Unternehmen wurde erfolgreich gelöscht.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Löschen fehlgeschlagen.";
+      setImportError(message);
+    } finally {
+      deleteDialogRef.current?.close();
+      setDeleteId(null);
+    }
   }
 
   const activeCompany = useMemo(
-    () => companies.find((x) => x.id === openMenuId) ?? null,
-    [companies, openMenuId]
+      () => companies.find((x) => x.id === openMenuId) ?? null,
+      [companies, openMenuId]
+  );
+
+  const deleteCompanyItem = useMemo(
+      () => companies.find((x) => x.id === deleteId) ?? null,
+      [companies, deleteId]
   );
 
   return (
-    <>
-      <div className="pageHeader">
-        <div>
-          <h2 style={{ margin: 0 }}>Unternehmen</h2>
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: "none" }}
-            onChange={(e) => void onImportExcel(e)}
-          />
-          <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
-            Excel importieren
-          </button>
-          <button className="btn btnGhost" onClick={() => void refresh()}>
-            Neu laden
-          </button>
-          <button className="btn btnPrimary" onClick={openAddDialog}>
-            + Unternehmen einladen
-          </button>
-        </div>
-      </div>
+      <>
+        <div className="pageHeader">
+          <div>
+            <h2 style={{ margin: 0 }}>Unternehmen</h2>
+          </div>
 
-      {loadError && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p className="error" style={{ marginBottom: 12 }}>
-            {loadError}
-          </p>
-          <button className="btn btnPrimary" onClick={() => void refresh()}>
-            Erneut versuchen
-          </button>
-        </div>
-      )}
+          <div style={{ display: "flex", gap: 12 }}>
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                style={{ display: "none" }}
+                onChange={(e) => void onImportExcel(e)}
+            />
 
-      {importError && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p className="error" style={{ margin: 0 }}>{importError}</p>
-        </div>
-      )}
+            <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
+              Excel importieren
+            </button>
 
-      {inviteInfo && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p style={{ margin: 0 }}>{inviteInfo}</p>
-        </div>
-      )}
+            <button className="btn btnGhost" onClick={() => void refresh()}>
+              Neu laden
+            </button>
 
-      <div className="tableWrap">
-        <table className="table">
-          <thead>
+            <button className="btn btnPrimary" onClick={openInviteDialog}>
+              + Unternehmen einladen
+            </button>
+          </div>
+        </div>
+
+        {loadError && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p className="error" style={{ marginBottom: 12 }}>
+                {loadError}
+              </p>
+              <button className="btn btnPrimary" onClick={() => void refresh()}>
+                Erneut versuchen
+              </button>
+            </div>
+        )}
+
+        {importError && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p className="error" style={{ margin: 0 }}>
+                {importError}
+              </p>
+            </div>
+        )}
+
+        {info && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p style={{ margin: 0 }}>{info}</p>
+            </div>
+        )}
+
+        {error && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p className="error" style={{ margin: 0 }}>
+                {error}
+              </p>
+            </div>
+        )}
+
+        <div className="tableWrap">
+          <table className="table">
+            <thead>
             <tr>
               <th style={{ width: "20%" }}>Name</th>
-              <th style={{ width: "24%" }}>Akademisches Programm</th>
-              <th style={{ width: "14%" }}>Branche</th>
+              <th style={{ width: "35%" }}>Beschreibung</th>
               <th style={{ width: "22%" }}>Website</th>
               <th style={{ width: "10%" }}>Status</th>
               <th style={{ width: "10%" }}>Aktionen</th>
             </tr>
-          </thead>
+            </thead>
 
-          <tbody>
+            <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={6} className="muted" style={{ padding: 16 }}>
-                  Lade Unternehmen...
-                </td>
-              </tr>
-            ) : companies.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="muted" style={{ padding: 16 }}>
-                  Keine Unternehmen vorhanden.
-                </td>
-              </tr>
-            ) : (
-              companies.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td>{c.program}</td>
-                  <td>{c.industry}</td>
-                  <td>
-                    {c.website ? (
-                      <a href={c.website} target="_blank" rel="noreferrer">
-                        {c.website}
-                      </a>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+                <tr>
+                  <td colSpan={5} className="muted" style={{ padding: 16 }}>
+                    Lade Unternehmen...
                   </td>
-                  <td>
+                </tr>
+            ) : companies.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted" style={{ padding: 16 }}>
+                    Keine Unternehmen vorhanden.
+                  </td>
+                </tr>
+            ) : (
+                companies.map((c) => (
+                    <tr key={c.id}>
+                      <td>{c.name}</td>
+                      <td>{c.description || <span className="muted">Nicht angegeben</span>}</td>
+                      <td>
+                        {c.website ? (
+                            <a href={c.website} target="_blank" rel="noreferrer">
+                              {c.website}
+                            </a>
+                        ) : (
+                            <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>
                     <span className={`pill ${c.status === "Aktiv" ? "pillActive" : "pillInactive"}`}>
                       {c.status}
                     </span>
-                  </td>
+                      </td>
 
-                  <td style={{ textAlign: "right" }}>
-                    <div className="kebab" data-kebab-root>
-                      <button
-                        type="button"
-                        className="kebabBtn"
-                        aria-label="Aktionen"
-                        aria-haspopup="menu"
-                        aria-expanded={openMenuId === c.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          anchorBtnRef.current = e.currentTarget;
-                          updateMenuPos();
-                          setOpenMenuId((prev) => (prev === c.id ? null : c.id));
-                        }}
-                      >
-                        ⋮
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      <td style={{ textAlign: "right" }}>
+                        <div className="kebab" data-kebab-root>
+                          <button
+                              type="button"
+                              className="kebabBtn"
+                              aria-label="Aktionen"
+                              aria-haspopup="menu"
+                              aria-expanded={openMenuId === c.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                anchorBtnRef.current = e.currentTarget;
+                                updateMenuPos();
+                                setOpenMenuId((prev) => (prev === c.id ? null : c.id));
+                              }}
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                ))
             )}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
 
-      {mounted && openMenuId && menuPos && activeCompany
-        ? createPortal(
-            <div
-              className="kebabMenuPortal"
-              data-kebab-root
-              role="menu"
-              aria-label="Aktionen Menü"
-              style={{ top: menuPos.top, left: menuPos.left }}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="kebabItem"
-                onClick={() => {
-                  setOpenMenuId(null);
-                  router.push(`/companies/${activeCompany.id}/edit`);
-                }}
-              >
-                Profil bearbeiten
+        {mounted && openMenuId && menuPos && activeCompany
+            ? createPortal(
+                <div
+                    className="kebabMenuPortal"
+                    data-kebab-root
+                    role="menu"
+                    aria-label="Aktionen Menü"
+                    style={{ top: menuPos.top, left: menuPos.left }}
+                >
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem"
+                      onClick={() => {
+                        setOpenMenuId(null);
+                        router.push(`/companies/${activeCompany.id}/edit`);
+                      }}
+                  >
+                    Profil bearbeiten
+                  </button>
+
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem kebabDanger"
+                      onClick={() => openDeleteDialog(activeCompany.id)}
+                  >
+                    Löschen
+                  </button>
+                </div>,
+                document.body
+            )
+            : null}
+
+        <dialog ref={dialogRef} className="dialog">
+          <form method="dialog" className="dialogInner" onSubmit={onInvite}>
+            <div className="dialogHeader">
+              <h3 style={{ margin: 0 }}>Unternehmen einladen</h3>
+              <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
+                ✕
+              </button>
+            </div>
+
+            <div className="grid">
+              <label className="field">
+                <span>Firmenname</span>
+                <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoFocus />
+              </label>
+
+              <label className="field">
+                <span>E-Mail</span>
+                <input
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="z.B. firma@example.com"
+                />
+              </label>
+            </div>
+
+            {error && <p className="error">{error}</p>}
+
+            <div className="dialogActions">
+              <button type="button" className="btn" onClick={closeDialog}>
+                Abbrechen
+              </button>
+              <button type="submit" className="btn btnPrimary">
+                Einladung senden
+              </button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog ref={deleteDialogRef} className="dialog">
+          <div className="dialogInner">
+            <h3>Unternehmen löschen</h3>
+            <p>
+              Willst du{" "}
+              {deleteCompanyItem?.name ? `"${deleteCompanyItem.name}"` : "dieses Unternehmen"} wirklich
+              löschen?
+            </p>
+
+            <div className="dialogActions">
+              <button className="btn" onClick={() => deleteDialogRef.current?.close()}>
+                Abbrechen
               </button>
 
-              <button
-                type="button"
-                role="menuitem"
-                className="kebabItem kebabDanger"
-                onClick={() => onDelete(activeCompany.id)}
-              >
+              <button className="btn btnDanger" onClick={() => void confirmDelete()}>
                 Löschen
               </button>
-            </div>,
-            document.body
-          )
-        : null}
-
-      <dialog ref={dialogRef} className="dialog">
-        <form method="dialog" className="dialogInner" onSubmit={onCreate}>
-          <div className="dialogHeader">
-            <h3 style={{ margin: 0 }}>Unternehmen einladen</h3>
-            <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
-              ✕
-            </button>
+            </div>
           </div>
-
-          <div className="grid">
-            <label className="field">
-              <span>Firmenname</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-            </label>
-
-            <label className="field">
-              <span>E-Mail</span>
-              <input
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="z.B. company@example.com"
-              />
-            </label>
-          </div>
-
-          {error && <p className="error">{error}</p>}
-
-          <div className="dialogActions">
-            <button type="button" className="btn" onClick={closeDialog}>
-              Abbrechen
-            </button>
-            <button type="submit" className="btn btnPrimary">
-              Einladung senden
-            </button>
-          </div>
-        </form>
-      </dialog>
-    </>
+        </dialog>
+      </>
   );
 }

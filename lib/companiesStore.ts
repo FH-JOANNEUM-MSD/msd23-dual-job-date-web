@@ -1,12 +1,14 @@
-// lib/companiesStore.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getCompanies, type Company, type CompanyStatus } from "./companiesApi";
+import {
+  getCompanies,
+  deleteCompany,
+  type Company,
+  type CompanyStatus,
+} from "./companiesApi";
 
 export type { Company, CompanyStatus };
-
-const DEFAULT_PROGRAM = "Mobile Software Development";
 
 export function useCompaniesStore() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -49,21 +51,12 @@ export function useCompaniesStore() {
         return companies.find((c) => c.id === id) ?? null;
       },
 
-      add(company: Company) {
-        setCompanies((prev) => [company, ...prev]);
-      },
-
-      update(id: string, patch: Partial<Company>) {
-        setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-      },
-
-      remove(id: string) {
-        setCompanies((prev) => prev.filter((c) => c.id !== id));
+      async remove(id: string) {
+        await deleteCompany(id);
+        await loadCompanies();
       },
     };
   }, [companies, isLoading, loadError, loadCompanies]);
 
   return api;
 }
-
-export const DEFAULT_COMPANY_PROGRAM = DEFAULT_PROGRAM;
