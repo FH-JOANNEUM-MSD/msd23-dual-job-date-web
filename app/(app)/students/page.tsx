@@ -211,6 +211,7 @@ export default function StudentsPage() {
       return;
     }
 
+    if (!trimmedName) return setError("Bitte Name eingeben.");
     if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
 
     const semesterNumber = Number(inviteSemester);
@@ -221,6 +222,7 @@ export default function StudentsPage() {
     try {
       await inviteStudent({
         email: trimmedEmail,
+        fullName: trimmedName,
         studyProgram: trimmedProgram,
         semester: semesterNumber,
       });
@@ -540,12 +542,21 @@ export default function StudentsPage() {
             ) : (
               <>
                 <label className="field">
+                  <span>Name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="z.B. Max Mustermann"
+                    autoFocus
+                  />
+                </label>
+
+                <label className="field">
                   <span>E-Mail</span>
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="z.B. student@example.com"
-                    autoFocus
                   />
                 </label>
 
