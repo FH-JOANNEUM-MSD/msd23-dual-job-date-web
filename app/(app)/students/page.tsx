@@ -74,7 +74,7 @@ export default function StudentsPage() {
       setStudents(data);
     } catch (error) {
       const message =
-        error instanceof ApiError ? error.message : "Studenten konnten nicht geladen werden.";
+        error instanceof ApiError ? error.message : "Studierende konnten nicht geladen werden.";
       setLoadError(message);
     } finally {
       setIsLoading(false);
@@ -305,7 +305,7 @@ export default function StudentsPage() {
       }
 
       setStudents(importedStudents);
-      setImportInfo(`${importedStudents.length} Studenten erfolgreich aus Excel importiert.`);
+      setImportInfo(`${importedStudents.length} Studierende erfolgreich aus Excel importiert.`);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
@@ -321,7 +321,7 @@ export default function StudentsPage() {
     <>
       <div className="pageHeader">
         <div>
-          <h2 style={{ margin: 0 }}>Studenten</h2>
+          <h2 style={{ margin: 0 }}>Studierende</h2>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <input
@@ -382,13 +382,13 @@ export default function StudentsPage() {
             {isLoading ? (
               <tr>
                 <td colSpan={5} className="muted" style={{ padding: 16 }}>
-                  Lade Studenten...
+                  Lade Studierende...
                 </td>
               </tr>
             ) : students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="muted" style={{ padding: 16 }}>
-                  Keine Studenten vorhanden.
+                  Keine Studierende vorhanden.
                 </td>
               </tr>
             ) : (

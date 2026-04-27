@@ -242,7 +242,7 @@ export default function EventsPage() {
 
     if (filteredStudents.length > 0) {
       setMatchingInfo(
-        `${matchedCount} Studenten automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
+        `${matchedCount} Studierende automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
       );
     } else {
       setMatchingInfo(null);
@@ -329,7 +329,7 @@ export default function EventsPage() {
         <div>
           <h2 style={{ margin: 0 }}>Termine</h2>
           <p className="muted" style={{ margin: "6px 0 0" }}>
-            Job-Dating-Events erstellen und Studenten automatisch oder manuell Unternehmen zuweisen.
+            Job-Dating-Events erstellen und Studierende automatisch oder manuell Unternehmen zuweisen.
           </p>
         </div>
       </div>
@@ -441,7 +441,7 @@ export default function EventsPage() {
               </tr>
             ) : filteredStudents.length === 0 ? (
               <tr>
-                <td colSpan={4}>Keine Studenten für diese Auswahl gefunden.</td>
+                <td colSpan={4}>Keine Studierende für diese Auswahl gefunden.</td>
               </tr>
             ) : (
               filteredStudents.map((student) => (

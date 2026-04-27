@@ -4,7 +4,7 @@ The Web-Portal can be accessed here: [https://dualjobdating.vercel.app/](https:/
 
 ## Offene Tasks
 
-- [ ] Seite fürs Passwort setzen für neue User implementieren
+- [X] Seite fürs Passwort setzen für neue User implementieren
 - [ ] Student/Unternehmen erstellen Funktionalität ändern - statt sie zur Tabelle hinzuzufügen soll ein invite zum registrieren rausgesendet werden [https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating](https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating)
 - [ ] Excel Import anpassen - statt Studenten direkt in die Tabelle aufzunehmen sollen diese auch eingeladen werden
 - [ ] Website Re-Design, "FH JOANNEUM" Branding
@@ -12,7 +12,7 @@ The Web-Portal can be accessed here: [https://dualjobdating.vercel.app/](https:/
 - [ ] Student löschen Funktionalität  mit API verknüpfen
 - [ ] Unternehmensprofil updaten Funktionalität  mit API verknüpfen
 - [ ] Unternehmens löschen Funktionalität  mit API verknüpfen
-- [ ] "Studenten" auf "Studierende" ändern
+- [X] "Studenten" auf "Studierende" ändern
 
 ## Getting Started
 

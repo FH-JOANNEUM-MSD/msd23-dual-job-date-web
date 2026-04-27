@@ -16,7 +16,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="card">
-          <h3>Studenten</h3>
+          <h3>Studierende</h3>
           <p>Liste ansehen, hinzufügen, bearbeiten und löschen.</p>
           <Link href="/students">Öffnen</Link>
         </div>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
       const seededStudentCount = students.filter((s) => isSeedStudentId(s.id)).length;
 
       setSeedInfo(
-        `${seededStudentCount} Test-Studenten und ${preferences.length} Test-Präferenzen wurden geladen.`
+        `${seededStudentCount} Test-Studierende und ${preferences.length} Test-Präferenzen wurden geladen.`
       );
     } catch (error) {
       const message =
@@ -117,7 +117,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="card">
-          <h3>Studenten</h3>
+          <h3>Studierende</h3>
           <p>Liste ansehen, hinzufügen, bearbeiten und löschen.</p>
           <Link href="/students">Öffnen</Link>
         </div>
@@ -131,7 +131,7 @@ export default function DashboardPage() {
         <div className="card">
           <h3>Testdaten</h3>
           <p>
-            Lädt lokale Test-Studenten und erzeugt passende Test-Präferenzen
+            Lädt lokale Test-Studierende und erzeugt passende Test-Präferenzen
             für die Matching-Logik.
           </p>
           <button
