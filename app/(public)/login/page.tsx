@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
@@ -24,7 +25,7 @@ export default function LoginPage() {
         return;
       }
 
-      const {data, error} = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -44,7 +45,7 @@ export default function LoginPage() {
       localStorage.setItem("access_token", token);
       setError("");
       router.push("/dashboard");
-    }catch (err) {
+    } catch {
       setError("Fehler beim Login.");
     } finally {
       setIsSubmitting(false);
@@ -52,14 +53,57 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="main">
-      <div className="formCard">
-        <div className="formHeader">
-          <div>
-            <h2>Login</h2>
-            <p className="muted">
-              Melden Sie sich mit Ihren Zugangsdaten an.
+    <main
+      className="main"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 32,
+        paddingBottom: 32,
+      }}
+    >
+      <div
+        className="formCard"
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          padding: 28,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: 20,
+          }}
+        >
+          <Image
+            src="/fh-joanneum-logo.jpg"
+            alt="FH Joanneum Logo"
+            width={260}
+            height={80}
+            style={{ height: "auto", width: "auto", maxWidth: "100%" }}
+            priority
+          />
+        </div>
+
+        <div className="formHeader" style={{ marginBottom: 20 }}>
+          <div style={{ width: "100%", textAlign: "center" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--green)",
+                fontWeight: 700,
+                fontSize: 14,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              Dual Job Dating
             </p>
+            <h2 style={{ margin: "8px 0 8px" }}>Web-Portal Login</h2>
           </div>
         </div>
 
@@ -67,12 +111,12 @@ export default function LoginPage() {
           <div className="field formFull">
             <label htmlFor="email">E-Mail</label>
             <input
-                id="email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@example.com"
+              id="email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="name@example.com"
             />
           </div>
 
@@ -95,12 +139,9 @@ export default function LoginPage() {
           )}
 
           <div className="formFooter formFull">
-            <button type="submit" className="btn btnPrimary">
-              Einloggen
+            <button type="submit" className="btn btnPrimary" disabled={isSubmitting}>
+              {isSubmitting ? "Einloggen..." : "Einloggen"}
             </button>
-            <Link href="/" className="btn btnGhost">
-              Zurück zur Startseite
-            </Link>
           </div>
         </form>
       </div>

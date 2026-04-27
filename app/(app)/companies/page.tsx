@@ -1,31 +1,19 @@
-// app/(app)/companies/page.tsx
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { DEFAULT_COMPANY_PROGRAM, Company, CompanyStatus, useCompaniesStore } from "@/lib/companiesStore";
+import { ApiError } from "@/lib/apiClient";
+import { inviteCompany } from "@/lib/inviteApi";
+import { useCompaniesStore } from "@/lib/companiesStore";
 
-function normalizeWebsite(input: string) {
-  const v = input.trim();
-  if (!v) return "";
-  if (!/^https?:\/\//i.test(v)) return `https://${v}`;
-  return v;
-}
-
-function isValidUrl(url: string) {
-  if (!url) return true; // allow empty
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 export default function CompaniesPage() {
   const router = useRouter();
-  const { companies, isLoading, loadError, refresh, remove, add } = useCompaniesStore();
+  const { companies, isLoading, loadError, refresh, remove } = useCompaniesStore();
 
   // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -42,7 +30,6 @@ export default function CompaniesPage() {
     setMenuPos({ top: r.bottom + 6, left: r.right });
   }
 
-  // Close menu on outside click + ESC
   React.useEffect(() => {
     function onDocumentClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
@@ -60,7 +47,6 @@ export default function CompaniesPage() {
     };
   }, []);
 
-  // Keep portal menu positioned on scroll/resize
   React.useEffect(() => {
     if (!openMenuId) return;
 
@@ -74,22 +60,17 @@ export default function CompaniesPage() {
     };
   }, [openMenuId]);
 
-  // --- Add dialog state ---
+  // --- Invite dialog state ---
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const [name, setName] = useState("");
-  const [program, setProgram] = useState(DEFAULT_COMPANY_PROGRAM);
-  const [industry, setIndustry] = useState("IT");
-  const [website, setWebsite] = useState("");
-  const [status, setStatus] = useState<CompanyStatus>("Aktiv");
+  const [inviteEmail, setInviteEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [inviteInfo, setInviteInfo] = useState<string | null>(null);
 
   function openAddDialog() {
     setOpenMenuId(null);
     setName("");
-    setProgram(DEFAULT_COMPANY_PROGRAM);
-    setIndustry("IT");
-    setWebsite("");
-    setStatus("Aktiv");
+    setInviteEmail("");
     setError(null);
     dialogRef.current?.showModal();
   }
@@ -99,40 +80,32 @@ export default function CompaniesPage() {
     setError(null);
   }
 
-  function onCreate(e: React.FormEvent) {
+  async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInviteInfo(null);
 
     const trimmedName = name.trim();
-    const trimmedProgram = program.trim();
-    const trimmedIndustry = industry.trim();
-    const normalizedWebsite = normalizeWebsite(website);
+    const trimmedEmail = inviteEmail.trim();
 
     if (!trimmedName) return setError("Bitte Firmenname eingeben.");
-    if (!trimmedProgram) return setError("Bitte akademisches Programm eingeben.");
-    if (!trimmedIndustry) return setError("Bitte Branche eingeben.");
-    if (!isValidUrl(normalizedWebsite)) return setError("Bitte eine gültige Website-URL eingeben.");
+    if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
+    if (!isValidEmail(trimmedEmail)) return setError("Bitte eine gültige E-Mail eingeben.");
 
-    const nameTaken = companies.some((c) => c.name.toLowerCase() === trimmedName.toLowerCase());
-    if (nameTaken) return setError("Dieser Firmenname ist bereits vorhanden.");
+    try {
+      await inviteCompany({
+        email: trimmedEmail,
+        companyName: trimmedName,
+      });
 
-    const newCompany: Company = {
-      id: crypto.randomUUID(),
-      name: trimmedName,
-      description: "",
-      program: trimmedProgram,
-      industry: trimmedIndustry,
-      website: normalizedWebsite,
-      status,
-      locations: "",
-      jobDescription: "",
-    };
-
-    add(newCompany);
-    closeDialog();
-
-    // Nice UX: go directly to edit/profile page
-    router.push(`/companies/${newCompany.id}/edit`);
+      setInviteInfo(`Einladung an ${trimmedEmail} wurde versendet.`);
+      closeDialog();
+      void refresh();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : "Einladung konnte nicht versendet werden.";
+      setError(message);
+    }
   }
 
   function onDelete(id: string) {
@@ -160,20 +133,26 @@ export default function CompaniesPage() {
             Neu laden
           </button>
           <button className="btn btnPrimary" onClick={openAddDialog}>
-            + Unternehmen hinzufügen
+            + Unternehmen einladen
           </button>
         </div>
       </div>
 
       {loadError && (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <p className="error" style={{ marginBottom: 12 }}>
-              {loadError}
-            </p>
-            <button className="btn btnPrimary" onClick={() => void refresh()}>
-              Erneut versuchen
-            </button>
-          </div>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="error" style={{ marginBottom: 12 }}>
+            {loadError}
+          </p>
+          <button className="btn btnPrimary" onClick={() => void refresh()}>
+            Erneut versuchen
+          </button>
+        </div>
+      )}
+
+      {inviteInfo && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>{inviteInfo}</p>
+        </div>
       )}
 
       <div className="tableWrap">
@@ -191,12 +170,12 @@ export default function CompaniesPage() {
 
           <tbody>
             {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="muted" style={{ padding: 16 }}>
-                        Lade Unternehmen...
-                      </td>
-                    </tr>
-                ) : companies.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted" style={{ padding: 16 }}>
+                  Lade Unternehmen...
+                </td>
+              </tr>
+            ) : companies.length === 0 ? (
               <tr>
                 <td colSpan={6} className="muted" style={{ padding: 16 }}>
                   Keine Unternehmen vorhanden.
@@ -249,7 +228,6 @@ export default function CompaniesPage() {
         </table>
       </div>
 
-      {/* Portal menu rendered outside the table */}
       {mounted && openMenuId && menuPos && activeCompany
         ? createPortal(
             <div
@@ -284,11 +262,10 @@ export default function CompaniesPage() {
           )
         : null}
 
-      {/* Add company dialog */}
       <dialog ref={dialogRef} className="dialog">
         <form method="dialog" className="dialogInner" onSubmit={onCreate}>
           <div className="dialogHeader">
-            <h3 style={{ margin: 0 }}>Unternehmen hinzufügen</h3>
+            <h3 style={{ margin: 0 }}>Unternehmen einladen</h3>
             <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
               ✕
             </button>
@@ -296,35 +273,17 @@ export default function CompaniesPage() {
 
           <div className="grid">
             <label className="field">
-              <span>Name</span>
+              <span>Firmenname</span>
               <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </label>
 
             <label className="field">
-              <span>Website</span>
+              <span>E-Mail</span>
               <input
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="z.B. https://example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="z.B. company@example.com"
               />
-            </label>
-
-            <label className="field">
-              <span>Akademisches Programm</span>
-              <input value={program} onChange={(e) => setProgram(e.target.value)} />
-            </label>
-
-            <label className="field">
-              <span>Branche</span>
-              <input value={industry} onChange={(e) => setIndustry(e.target.value)} />
-            </label>
-
-            <label className="field">
-              <span>Status</span>
-              <select value={status} onChange={(e) => setStatus(e.target.value as CompanyStatus)}>
-                <option value="Aktiv">Aktiv</option>
-                <option value="Inaktiv">Inaktiv</option>
-              </select>
             </label>
           </div>
 
@@ -335,7 +294,7 @@ export default function CompaniesPage() {
               Abbrechen
             </button>
             <button type="submit" className="btn btnPrimary">
-              Erstellen & bearbeiten
+              Einladung senden
             </button>
           </div>
         </form>
