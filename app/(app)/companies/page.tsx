@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
 import { inviteCompany } from "@/lib/inviteApi";
@@ -11,15 +12,27 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export default function CompaniesPage() {
   const router = useRouter();
   const { companies, isLoading, loadError, refresh, remove } = useCompaniesStore();
 
-  // --- Kebab menu (portal) state ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const anchorBtnRef = useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [name, setName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [inviteInfo, setInviteInfo] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   React.useEffect(() => setMounted(true), []);
 
@@ -59,13 +72,6 @@ export default function CompaniesPage() {
       window.removeEventListener("resize", onMove);
     };
   }, [openMenuId]);
-
-  // --- Invite dialog state ---
-  const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const [name, setName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [inviteInfo, setInviteInfo] = useState<string | null>(null);
 
   function openAddDialog() {
     setOpenMenuId(null);
@@ -108,6 +114,114 @@ export default function CompaniesPage() {
     }
   }
 
+  async function onImportExcel(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setInviteInfo(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+
+      if (!sheet) {
+        throw new Error("Die Excel-Datei enthält kein gültiges Arbeitsblatt.");
+      }
+
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: "",
+      });
+
+      if (rows.length < 2) {
+        throw new Error("Bitte eine Excel-Datei mit Header und mindestens einer Zeile hochladen.");
+      }
+
+      const headers = (rows[0] as unknown[]).map((cell) => normalizeHeader(String(cell ?? "")));
+      const headerIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
+
+      type InviteRow = {
+        companyName: string;
+        email: string;
+      };
+
+      const inviteRows: InviteRow[] = [];
+      let skippedRows = 0;
+
+      for (let i = 1; i < rows.length; i += 1) {
+        const row = rows[i] as unknown[];
+
+        const getCell = (column: string): string => {
+          const index = headerIndex[column];
+          return index === undefined ? "" : String(row[index] ?? "").trim();
+        };
+
+        const companyName =
+          getCell("companyname") ||
+          getCell("firmenname") ||
+          getCell("firma") ||
+          getCell("name");
+        const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
+
+        if (!companyName && !emailValue) {
+          continue;
+        }
+
+        if (!companyName || !emailValue || !isValidEmail(emailValue)) {
+          skippedRows += 1;
+          continue;
+        }
+
+        inviteRows.push({
+          companyName,
+          email: emailValue,
+        });
+      }
+
+      if (inviteRows.length === 0) {
+        throw new Error("Keine verwertbaren Zeilen in der Excel-Datei gefunden.");
+      }
+
+      let successCount = 0;
+      const failed: string[] = [];
+
+      for (const inviteRow of inviteRows) {
+        try {
+          await inviteCompany(inviteRow);
+          successCount += 1;
+        } catch (error) {
+          const message =
+            error instanceof ApiError ? error.message : "Einladung fehlgeschlagen";
+          failed.push(`${inviteRow.email}: ${message}`);
+        }
+      }
+
+      if (successCount > 0) {
+        await refresh();
+      }
+
+      setInviteInfo(
+        `${successCount} Unternehmenseinladungen versendet.${skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""}`
+      );
+
+      if (failed.length > 0) {
+        const preview = failed.slice(0, 3).join(" | ");
+        setImportError(
+          `${failed.length} Einladungen fehlgeschlagen.${preview ? ` Beispiele: ${preview}` : ""}`
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
+      setImportError(message);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   function onDelete(id: string) {
     const c = companies.find((x) => x.id === id);
     if (!c) return;
@@ -129,6 +243,16 @@ export default function CompaniesPage() {
           <h2 style={{ margin: 0 }}>Unternehmen</h2>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={(e) => void onImportExcel(e)}
+          />
+          <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
+            Excel importieren
+          </button>
           <button className="btn btnGhost" onClick={() => void refresh()}>
             Neu laden
           </button>
@@ -146,6 +270,12 @@ export default function CompaniesPage() {
           <button className="btn btnPrimary" onClick={() => void refresh()}>
             Erneut versuchen
           </button>
+        </div>
+      )}
+
+      {importError && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="error" style={{ margin: 0 }}>{importError}</p>
         </div>
       )}
 

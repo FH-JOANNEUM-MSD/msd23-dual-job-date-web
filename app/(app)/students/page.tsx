@@ -38,18 +38,6 @@ function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function parseImportedStatus(value: unknown): StudentStatus {
-  if (typeof value === "boolean") return value ? "Aktiv" : "Inaktiv";
-  if (typeof value === "number") return value === 1 ? "Aktiv" : "Inaktiv";
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["aktiv", "active", "1", "true", "yes", "ja"].includes(normalized)) {
-      return "Aktiv";
-    }
-  }
-  return "Inaktiv";
-}
-
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -282,10 +270,19 @@ export default function StudentsPage() {
         );
       }
 
-      const importedStudents: Student[] = [];
+      type InviteRow = {
+        fullName: string;
+        email: string;
+        studyProgram: string;
+        semester: number;
+      };
+
+      const inviteRows: InviteRow[] = [];
+      let skippedRows = 0;
 
       for (let i = 1; i < rows.length; i += 1) {
         const row = rows[i] as unknown[];
+
         const getCell = (column: string): string => {
           const index = headerIndex[column];
           return index === undefined ? "" : String(row[index] ?? "").trim();
@@ -293,37 +290,70 @@ export default function StudentsPage() {
 
         const studyProgram = getCell("studyprogram");
         const semesterRaw = getCell("semester");
-        if (!studyProgram && !semesterRaw) continue;
-
-        const semesterNumber = Number(semesterRaw);
-        const semester = Number.isFinite(semesterNumber) ? semesterNumber : null;
-        const program = semester ? `${studyProgram} (Semester ${semester})` : studyProgram;
-
         const firstName = getCell("firstname");
         const lastName = getCell("lastname");
         const nameFromColumn = getCell("name");
-        const name = `${firstName} ${lastName}`.trim() || nameFromColumn || "Unbekannt";
+        const fullName = `${firstName} ${lastName}`.trim() || nameFromColumn || "";
+        const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
 
-        const email = getCell("email") || getCell("emailadresse") || getCell("mail");
-        const statusValue = getCell("status");
+        if (!studyProgram && !semesterRaw && !fullName && !emailValue) {
+          continue;
+        }
 
-        importedStudents.push({
-          id: crypto.randomUUID(),
-          name,
-          email,
-          program: program || DEFAULT_PROGRAM,
-          studyProgram: studyProgram || DEFAULT_PROGRAM,
-          semester,
-          status: parseImportedStatus(statusValue || "aktiv"),
+        const semesterNumber = Number(semesterRaw);
+
+        if (
+          !fullName ||
+          !emailValue ||
+          !isValidEmail(emailValue) ||
+          !studyProgram ||
+          !Number.isFinite(semesterNumber) ||
+          semesterNumber < 1
+        ) {
+          skippedRows += 1;
+          continue;
+        }
+
+        inviteRows.push({
+          fullName,
+          email: emailValue,
+          studyProgram,
+          semester: semesterNumber,
         });
       }
 
-      if (importedStudents.length === 0) {
+      if (inviteRows.length === 0) {
         throw new Error("Keine verwertbaren Zeilen in der Excel-Datei gefunden.");
       }
 
-      setStudents(importedStudents);
-      setImportInfo(`${importedStudents.length} Studierende erfolgreich aus Excel importiert.`);
+      let successCount = 0;
+      const failed: string[] = [];
+
+      for (const inviteRow of inviteRows) {
+        try {
+          await inviteStudent(inviteRow);
+          successCount += 1;
+        } catch (error) {
+          const message =
+            error instanceof ApiError ? error.message : "Einladung fehlgeschlagen";
+          failed.push(`${inviteRow.email}: ${message}`);
+        }
+      }
+
+      if (successCount > 0) {
+        await loadStudents();
+      }
+
+      setImportInfo(
+        `${successCount} Einladungen versendet.${skippedRows > 0 ? ` ${skippedRows} Zeilen übersprungen.` : ""}`
+      );
+
+      if (failed.length > 0) {
+        const preview = failed.slice(0, 3).join(" | ");
+        setImportError(
+          `${failed.length} Einladungen fehlgeschlagen.${preview ? ` Beispiele: ${preview}` : ""}`
+        );
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Excel-Import fehlgeschlagen. Bitte Datei prüfen.";
@@ -501,85 +531,54 @@ export default function StudentsPage() {
           </div>
 
           <div className="grid">
-            {isEditing ? (
-              <>
-                <label className="field">
-                  <span>Name</span>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="z.B. Max Mustermann"
-                    autoFocus
-                  />
-                </label>
+            <label className="field">
+              <span>Name</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="z.B. Max Mustermann"
+                autoFocus
+              />
+            </label>
 
-                <label className="field">
-                  <span>Email</span>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="z.B. max.mustermann@fh-joanneum.at"
-                  />
-                </label>
+            <label className="field">
+              <span>E-Mail</span>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="z.B. student@example.com"
+                disabled={isEditing}
+              />
+            </label>
 
-                <label className="field">
-                  <span>Akademisches Programm</span>
-                  <input
-                    value={program}
-                    onChange={(e) => setProgram(e.target.value)}
-                    placeholder={DEFAULT_PROGRAM}
-                  />
-                </label>
+            <label className="field">
+              <span>Akademisches Programm</span>
+              <input
+                value={program}
+                onChange={(e) => setProgram(e.target.value)}
+                placeholder={DEFAULT_PROGRAM}
+              />
+            </label>
 
-                <label className="field">
-                  <span>Status</span>
-                  <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
-                    <option value="Aktiv">Aktiv</option>
-                    <option value="Inaktiv">Inaktiv</option>
-                  </select>
-                </label>
-              </>
-            ) : (
-              <>
-                <label className="field">
-                  <span>Name</span>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="z.B. Max Mustermann"
-                    autoFocus
-                  />
-                </label>
+            <label className="field">
+              <span>Semester</span>
+              <input
+                type="number"
+                min={1}
+                value={inviteSemester}
+                onChange={(e) => setInviteSemester(e.target.value)}
+                placeholder="z.B. 2"
+              />
+            </label>
 
-                <label className="field">
-                  <span>E-Mail</span>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="z.B. student@example.com"
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Akademisches Programm</span>
-                  <input
-                    value={program}
-                    onChange={(e) => setProgram(e.target.value)}
-                    placeholder={DEFAULT_PROGRAM}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Semester</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={inviteSemester}
-                    onChange={(e) => setInviteSemester(e.target.value)}
-                    placeholder="z.B. 2"
-                  />
-                </label>
-              </>
+            {isEditing && (
+              <label className="field">
+                <span>Status</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
+                  <option value="Aktiv">Aktiv</option>
+                  <option value="Inaktiv">Inaktiv</option>
+                </select>
+              </label>
             )}
           </div>
 
