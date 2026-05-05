@@ -4,6 +4,7 @@ export type CompanyStatus = "Aktiv" | "Inaktiv";
 
 export type Company = {
     id: string;
+    userId: string;
     name: string;
     description: string;
     website: string;
@@ -12,6 +13,7 @@ export type Company = {
 
 type CompanyApiDto = {
     id?: string | number;
+    user_id?: string;
     name?: string;
     description?: string;
     website?: string;
@@ -48,6 +50,7 @@ function mapCompanyStatus(dto: CompanyApiDto): CompanyStatus {
 function mapCompany(dto: CompanyApiDto): Company {
     return {
         id: String(dto.id ?? crypto.randomUUID()),
+        userId: String(dto.user_id ?? ""),
         name: dto.name?.trim() || "Unbekannt",
         description: dto.description?.trim() || "Nicht angegeben",
         website: dto.website?.trim() || "",
@@ -72,4 +75,9 @@ export async function deleteCompany(id: string) {
     return apiFetch(`/api/backend/companies/${id}`, {
         method: "DELETE",
     });
+}
+
+export async function getCompanyById(id: string): Promise<Company> {
+    const data = await apiFetch<CompanyApiDto>(`/api/backend/companies/${id}`);
+    return mapCompany(data);
 }

@@ -6,6 +6,50 @@ function getAuthHeader(request: NextRequest) {
     return request.headers.get("authorization");
 }
 
+export async function GET(
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
+    const authHeader = getAuthHeader(request);
+    const { id } = await context.params;
+
+    if (!authHeader) {
+        return NextResponse.json({ error: "missing_authorization_header" }, { status: 401 });
+    }
+
+    if (!BACKEND_BASE_URL) {
+        return NextResponse.json({ error: "missing_backend_base_url" }, { status: 500 });
+    }
+
+    try {
+        const response = await fetch(`${BACKEND_BASE_URL}/api/companies/${id}`, {
+            method: "GET",
+            headers: {
+                Authorization: authHeader,
+                Accept: "application/json, text/plain",
+            },
+            cache: "no-store",
+        });
+
+        const contentType = response.headers.get("content-type") ?? "";
+        const payload = contentType.includes("application/json")
+            ? await response.json()
+            : await response.text();
+
+        if (!response.ok) {
+            return NextResponse.json(
+                { error: "backend_request_failed", backendStatus: response.status, backendPayload: payload },
+                { status: response.status }
+            );
+        }
+
+        return NextResponse.json(payload, { status: response.status });
+    } catch (error) {
+        console.error("GET /companies/:id proxy error:", error);
+        return NextResponse.json({ error: "proxy_get_failed" }, { status: 500 });
+    }
+}
+
 export async function PATCH(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }

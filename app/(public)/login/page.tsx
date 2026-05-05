@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { getCurrentUser } from "@/lib/authApi";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,8 +43,16 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("access_token", token);
-      setError("");
-      router.push("/dashboard");
+
+      const me = await getCurrentUser();
+
+      localStorage.setItem("user_role", me.role ?? "");
+
+      if (me.role === "company") {
+        router.push("/me");
+      } else {
+        router.push("/dashboard");
+      }
     } catch {
       setError("Fehler beim Login.");
     } finally {
