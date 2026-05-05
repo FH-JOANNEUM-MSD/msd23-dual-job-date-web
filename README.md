@@ -2,7 +2,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 The Web-Portal can be accessed here: [https://dualjobdating.vercel.app/](https://dualjobdating.vercel.app/).
 
-## Offene Tasks
+## Tasks tracking
 
 - [X] Seite fürs Passwort setzen für neue User implementieren
 - [X] Student/Unternehmen erstellen Funktionalität ändern - statt sie zur Tabelle hinzuzufügen soll ein invite zum registrieren rausgesendet werden [https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating](https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating)
