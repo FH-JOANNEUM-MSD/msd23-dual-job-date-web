@@ -1,18 +1,8 @@
+# Dual Job Date Web
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 The Web-Portal can be accessed here: [https://dualjobdating.vercel.app/](https://dualjobdating.vercel.app/).
-
-## Tasks tracking
-
-- [X] Seite fürs Passwort setzen für neue User implementieren
-- [X] Student/Unternehmen erstellen Funktionalität ändern - statt sie zur Tabelle hinzuzufügen soll ein invite zum registrieren rausgesendet werden [https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating](https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating)
-- [X] Excel Import anpassen - statt Studenten direkt in die Tabelle aufzunehmen sollen diese auch eingeladen werden
-- [X] Website Re-Design, "FH JOANNEUM" Branding
-- [X] Student updaten Funktionalität  mit API verknüpfen
-- [X] Student löschen Funktionalität  mit API verknüpfen
-- [X] Unternehmensprofil updaten Funktionalität  mit API verknüpfen
-- [X] Unternehmens löschen Funktionalität  mit API verknüpfen
-- [X] "Studenten" auf "Studierende" ändern
 
 ## Getting Started
 
@@ -34,45 +24,50 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 
-## Technische Umsetzung
+### Invite-based Workflow
 
-### Invite-basierter Workflow
-Studierende und Unternehmen werden nicht direkt erstellt, sondern über ein Invite-System angelegt.
+Students and companies are not created directly.  
+Instead, an invite-based workflow is used.
 
-- Beim Hinzufügen wird ein API-Call ausgeführt (`/invite`)
-- Der Benutzer erhält eine Einladung zur Registrierung
-- Erst nach Abschluss der Registrierung wird der Datensatz vollständig angelegt
+- When adding a new student or company, an API request (`/invite`) is triggered
+- The user receives an invitation to register
+- The account becomes active only after completing the registration process
 
-Dies entspricht der Backend-API-Spezifikation:
+This implementation follows the backend API specification:  
 https://jobdatingbackend.stoplight.io/docs/dualjobdating/
 
 
 ### Excel Import
 
-Für Studierende und Unternehmen wurde ein Excel-Import implementiert.
+An Excel import for students and companies is implemented.
 
-#### Funktionsweise:
-- Upload einer `.xlsx` oder `.xls` Datei
-- Verarbeitung im Frontend mit der Bibliothek `xlsx`
-- Erste Zeile wird als Header interpretiert
-- Daten werden validiert und anschließend einzeln als Invite versendet
+- Upload `.xlsx` / `.xls`
+- Data is validated and processed
+- Invalid rows are skipped
 
-#### Unterstützte Spalten:
+For detailed requirements see:
+`dokumentation.md`
 
-**Studierende:**
-- firstname / lastname oder name
-- email
-- studyprogram
-- semester
 
-**Unternehmen:**
-- companyname / name
-- email
+## Testing
+Tests are located in the `__tests__` directory.
 
-#### Verhalten:
-- Ungültige Zeilen werden übersprungen
-- Erfolgreiche und fehlgeschlagene Einladungen werden angezeigt
-- Nach erfolgreichem Import wird die Liste neu geladen
+Basic unit and component tests are implemented using Jest and React Testing Library.
+
+### Setup
+
+The testing environment is configured with:
+- jest for running tests
+- ts-jest for TypeScript support
+- jest-environment-jsdom for DOM simulation
+- @testing-library/react for testing React components
+- @testing-library/jest-dom for extended matchers
+
+### Run Tests
+```
+npm run test
+```
+
 
 
 ## Learn More

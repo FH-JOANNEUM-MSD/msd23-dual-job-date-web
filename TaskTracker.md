@@ -1,4 +1,5 @@
 # TASK TRACKER
+
 ## Sprint 2
 - [X] Seite fürs Passwort setzen für neue User implementieren
 - [X] Student/Unternehmen erstellen Funktionalität ändern - statt sie zur Tabelle hinzuzufügen soll ein invite zum registrieren rausgesendet werden [https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating](https://jobdatingbackend.stoplight.io/docs/dualjobdating/a54e0e5192a6d-dual-job-dating)
@@ -20,12 +21,17 @@
 - [] Als Administrator kann ich die Zuteilung von Partnerunternehmen zu einer ausgewählten Studierenden sehen 
 - [] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen editieren (Uhrzeit ändern, Studierende ändern, Unternehmen ändern) Dabei verhindert die Business-Logik „ungültige“ Zuordnungen (gewählte Studierende zu dem gewählten Zeitpunkt bereits bei anderem Unternehmen zugeordnet; gewähltes Unternehmen zu dem gewählten Zeitpunkt bereits anderer Studierenden zugeordnet, etc.) 
 
-
-### Stakeholder Partnerunternehmen 
+### Stakeholder Partnerunternehmen (Ivana)
 - [] Als Unternehmen kann ich mich in der App einloggen, um zu sehen, wie mein Unternehmensprofil in der App aussieht 
 - [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
 
-### Feedback Christine
-- [] 
-- [] 
-- [] 
+### Tests
+- [] Companies List (Admin)
+- [] Students List (Admin)
+- [] matching between students and companies
+- [] correct creation of events/appointments
+- [] Company Profile Page
+- [] Excel Import
+- [] Authentication
+- [] Edge Cases
+- [] Error Handling
