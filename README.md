@@ -81,8 +81,61 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The project can be deployed manually using the Vercel CLI.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Install the Vercel CLI:
 
-[Current vercel deplyoment](https://dualjobdating.vercel.app).
+```bash
+npm install -g vercel
+```
+
+Log in:
+
+```bash
+vercel login
+```
+
+From the project root, where `package.json` is located, run:
+
+```bash
+vercel
+```
+
+This creates a preview deployment.
+
+To deploy directly to production, run:
+
+```bash
+vercel --prod
+```
+
+Before deploying, it is recommended to check that the project builds successfully:
+
+```bash
+npm run build
+```
+
+### Vercel Environment Variables
+
+The following environment variables must be configured in the Vercel dashboard:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_API_BASE_URL=...
+```
+
+In Vercel, go to:
+
+```text
+Project Settings → Environment Variables
+```
+
+After changing environment variables, redeploy the project so the new values are applied.
+
+Notes:
+
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are used for Supabase authentication.
+- `NEXT_PUBLIC_API_BASE_URL` must point to the backend API base URL.
+- Use the hosted backend domain instead of a raw IP address.
+- The current production deployment is: https://dualjobdating.vercel.app
