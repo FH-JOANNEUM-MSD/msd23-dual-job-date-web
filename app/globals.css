@@ -418,3 +418,94 @@ body {
 @media (max-width: 720px) {
   .formGrid { grid-template-columns: 1fr; }
 }
+
+/* Horizontal scroll when many companies; overrides .tableWrap overflow:hidden */
+.tableWrap.prefTableWrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prefTable {
+  width: max-content;
+  min-width: 100%;
+}
+
+.prefTable th,
+.prefTable td {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.prefStickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  text-align: left !important;
+  min-width: 200px;
+  background: white;
+  box-shadow: 2px 0 0 var(--border);
+}
+
+.prefTable thead .prefStickyCol {
+  background: #f9fafb;
+  z-index: 3;
+}
+
+.prefTable th.prefCompanyCol {
+  min-width: 120px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  white-space: normal;
+  line-height: 1.3;
+  vertical-align: bottom;
+  padding: 10px 8px !important;
+  text-align: center;
+}
+
+.prefDataCell {
+  min-width: 72px;
+  padding: 8px !important;
+}
+
+.prefStudentMeta {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.prefLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.prefCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.prefCell--like {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.prefCell--dislike {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.prefCell--none {
+  background: #f3f4f6;
+  color: #6b7280;
+}

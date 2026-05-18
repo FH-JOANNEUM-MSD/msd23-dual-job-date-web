@@ -64,6 +64,14 @@ export default function TopNav() {
                 <Link href="/events" className={isActive(pathname, "/events") ? "active" : ""}>
                   Termine
                 </Link>
+                {role === "admin" && (
+                  <Link
+                    href="/preferences"
+                    className={isActive(pathname, "/preferences") ? "active" : ""}
+                  >
+                    Präferenzen
+                  </Link>
+                )}
               </>
           )}
 

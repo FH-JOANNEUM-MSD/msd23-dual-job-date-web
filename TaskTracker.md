@@ -14,7 +14,7 @@
 ## Sprint 3
 
 ### Vorbereitung Dual Job Dating Event 
-- [] Als Administrator sehe ich welche Studierenden welches Unternehmen geliked/disliked hat 
+- [X] Als Administrator sehe ich welche Studierenden welches Unternehmen geliked/disliked hat 
 - [] Als Administrator kann ich das „Matching“ zwischen Studierenden und Partnerunternehmen für ein Job Dating Event anstoßen.  
 - [] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen sehen (Z.B: Zeile: Partnerunternehmen, Spalte: Studierende; evtl. Darstellung umschaltbar)
 - [] Als Administrator kann ich die Zuteilung von Studierenden zu einem ausgewählten Partnerunternehmen sehen 
@@ -25,7 +25,7 @@
 - [] Als Unternehmen kann ich mich in der App einloggen, um zu sehen, wie mein Unternehmensprofil in der App aussieht 
 - [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
 
-### Tests
+### Tests 
 - [] Companies List (Admin)
 - [] Students List (Admin)
 - [] matching between students and companies
