@@ -4,11 +4,22 @@ import React, { useEffect, useMemo, useState } from "react";
 import { getStudents, Student } from "@/lib/studentsApi";
 import { getCompanies, Company } from "@/lib/companiesApi";
 import { JobDatingEvent, useEventsStore } from "@/lib/eventsStore";
-import { loadSeedPreferences } from "@/lib/testData/localPreferenceSeed";
-import type { Preference, PreferenceType } from "@/lib/testData/testPreferences";
+import {
+  getAllPreferences,
+  type Preference,
+  type PreferenceType,
+} from "@/lib/preferencesApi";
 
 type AssignmentDraft = {
   companyId: string;
+  slot: string;
+};
+
+type RankedCandidate = {
+  company: Company;
+  pref: Exclude<PreferenceType, "dislike">;
+  score: number;
+  currentLoad: number;
   slot: string;
 };
 
@@ -33,8 +44,8 @@ function preferenceKey(studentId: string, companyId: string) {
 
 function preferenceScore(type: PreferenceType): number {
   if (type === "like") return 2;
-  if (type === "neutral") return 1;
-  return -9999; // dislike should never be assigned
+  if (type === "none") return 1;
+  return -9999;
 }
 
 function generateAutomaticAssignments(
@@ -49,7 +60,7 @@ function generateAutomaticAssignments(
 
   const prefMap = new Map<string, PreferenceType>();
   preferences.forEach((pref) => {
-    prefMap.set(preferenceKey(pref.student_id, pref.company_id), pref.preference_type);
+    prefMap.set(preferenceKey(pref.studentId, pref.companyId), pref.preferenceType);
   });
 
   const companyLoads = new Map<string, number>();
@@ -63,12 +74,12 @@ function generateAutomaticAssignments(
   const orderedStudents = [...students]
     .map((student) => {
       const allowedCompanies = companies.filter((company) => {
-        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
         return pref !== "dislike";
       });
 
       const likeCount = companies.filter((company) => {
-        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
         return pref === "like";
       }).length;
 
@@ -87,9 +98,9 @@ function generateAutomaticAssignments(
   for (const entry of orderedStudents) {
     const { student } = entry;
 
-    const rankedCandidates = companies
+const rankedCandidates = companies
   .map((company) => {
-    const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "neutral";
+    const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
 
     if (pref === "dislike") {
       return null;
@@ -111,17 +122,7 @@ function generateAutomaticAssignments(
       slot: nextFreeSlot,
     };
   })
-  .filter(
-    (
-      candidate
-    ): candidate is {
-      company: Company;
-      pref: "like" | "neutral";
-      score: number;
-      currentLoad: number;
-      slot: string;
-    } => candidate !== null
-  )
+  .filter((candidate): candidate is RankedCandidate => candidate !== null)
   .sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if (a.currentLoad !== b.currentLoad) return a.currentLoad - b.currentLoad;
@@ -172,14 +173,15 @@ export default function EventsPage() {
         setLoading(true);
         setError(null);
 
-        const [studentsData, companiesData] = await Promise.all([
-          getStudents(),
-          getCompanies(),
-        ]);
+      const [studentsData, companiesData, preferencesData] = await Promise.all([
+        getStudents(),
+        getCompanies(),
+        getAllPreferences(),
+      ]);
 
-        setStudents(studentsData);
-        setCompanies(companiesData);
-        setPreferences(loadSeedPreferences());
+      setStudents(studentsData);
+      setCompanies(companiesData);
+      setPreferences(preferencesData);
 
         const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
         const firstSemester =
