@@ -2,7 +2,7 @@
 
 import React, {useEffect, useState} from "react";
 import {getCurrentUser} from "@/lib/authApi";
-import {getCompanyById, updateCompany, type Company, type CompanyStatus} from "@/lib/companiesApi";
+import {getCompanyById, updateCompany, uploadCompanyLogo, uploadCompanyImage, type Company, type CompanyStatus} from "@/lib/companiesApi";
 
 function normalizeWebsite(input: string) {
     const value = input.trim();
@@ -33,8 +33,13 @@ export default function MyCompanyProfilePage() {
     const [website, setWebsite] = useState("");
     const [status, setStatus] = useState<CompanyStatus>("Aktiv");
 
+    const [shortDescription, setShortDescription] = useState("");
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+
     function fillForm(c: Company) {
         setName(c.name ?? "");
+        setShortDescription(c.shortDescription ?? "");
         setDescription(c.description ?? "");
         setWebsite(c.website ?? "");
         setStatus(c.status ?? "Aktiv");
@@ -85,6 +90,26 @@ export default function MyCompanyProfilePage() {
         setMode("view");
     }
 
+    async function removeImage(imageUrl: string) {
+        if (!company) return;
+
+        const remainingImages = company.imageUrls.filter((url) => url !== imageUrl);
+
+        try {
+            await updateCompany(company.id, {
+                image_urls: remainingImages.join(";"),
+            });
+
+            const updatedCompany = await getCompanyById(company.id);
+
+            setCompany(updatedCompany);
+            fillForm(updatedCompany);
+            setInfo("Bild wurde entfernt.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Bild konnte nicht entfernt werden.");
+        }
+    }
+
     async function onSave(e: React.FormEvent) {
         e.preventDefault();
         if (!company) return;
@@ -94,9 +119,11 @@ export default function MyCompanyProfilePage() {
 
         const trimmedName = name.trim();
         const trimmedDescription = description.trim();
+        const trimmedShortDescription = shortDescription.trim();
         const normalizedWebsite = normalizeWebsite(website);
 
         if (!trimmedName) return setError("Bitte Unternehmensname eingeben.");
+        if (!trimmedShortDescription) return setError("Bitte Kurzbeschreibung eingeben.");
         if (!trimmedDescription) return setError("Bitte Beschreibung eingeben.");
         if (!normalizedWebsite) return setError("Bitte Website eingeben.");
         if (!isValidUrl(normalizedWebsite)) return setError("Bitte eine gültige Website eingeben.");
@@ -104,15 +131,26 @@ export default function MyCompanyProfilePage() {
         try {
             await updateCompany(company.id, {
                 name: trimmedName,
+                short_description: trimmedShortDescription,
                 description: trimmedDescription,
                 website: normalizedWebsite,
                 active: status === "Aktiv",
             });
 
+            if (logoFile) {
+                await uploadCompanyLogo(company.id, logoFile);
+            }
+
+            if (imageFile) {
+                await uploadCompanyImage(company.id, imageFile);
+            }
+
             const updatedCompany = await getCompanyById(company.id);
 
             setCompany(updatedCompany);
             fillForm(updatedCompany);
+            setLogoFile(null);
+            setImageFile(null);
             setMode("view");
             setInfo("Unternehmensprofil wurde erfolgreich gespeichert.");
         } catch (err) {
@@ -137,7 +175,7 @@ export default function MyCompanyProfilePage() {
 
     if (mode === "view") {
         return (
-            <div className="formCard">
+            <div className="formCard profileView">
                 <div className="formHeader">
                     <div>
                         <h2 style={{ margin: 0 }}>Mein Unternehmensprofil</h2>
@@ -158,12 +196,123 @@ export default function MyCompanyProfilePage() {
 
                     <div className="field">
                         <span>Status</span>
-                        <p>{company.status}</p>
+                        <p
+                            className={`profileStatus ${
+                                company.status === "Aktiv"
+                                    ? "profileStatusActive"
+                                    : "profileStatusInactive"
+                            }`}
+                        >
+                            {company.status}
+                        </p>
                     </div>
 
                     <div className="field formFull">
                         <span>Beschreibung</span>
                         <p>{company.description || "Nicht angegeben"}</p>
+                    </div>
+
+                    <div className="field formFull">
+                        <span>Kurzbeschreibung</span>
+                        <p>{company.shortDescription || "Nicht angegeben"}</p>
+                    </div>
+
+                    <div className="field formFull">
+                        <span>Logo</span>
+                        {company.logoUrl ? (
+                            <img
+                                src={company.logoUrl}
+                                alt={`${company.name} Logo`}
+                                onError={(e) => {
+                                    e.currentTarget.replaceWith(
+                                        Object.assign(document.createElement("p"), {
+                                            textContent: "Logo konnte nicht geladen werden.",
+                                        })
+                                    );
+                                }}
+                                style={{ maxWidth: 180, height: "auto", marginTop: 8 }}
+                            />
+                        ) : (
+                            <p>Nicht angegeben</p>
+                        )}
+                    </div>
+
+                    <div className="field formFull">
+                        <span>Bilder</span>
+
+                        {company.imageUrls.length > 0 ? (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    gap: 12,
+                                    flexWrap: "wrap",
+                                    marginTop: 8,
+                                    alignItems: "flex-start",
+                                }}
+                            >
+                                {company.imageUrls.map((url) => (
+                                    <div
+                                        key={url}
+                                        style={{
+                                            position: "relative",
+                                            width: 170,
+                                            height: 100,
+                                            borderRadius: 8,
+                                            overflow: "hidden",
+                                            border: "1px solid var(--border)",
+                                            background: "#f8fafc",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                        }}
+                                    >
+                                        <img
+                                            src={url}
+                                            alt={`${company.name} Bild`}
+                                            onError={(e) => {
+                                                e.currentTarget.replaceWith(
+                                                    Object.assign(document.createElement("p"), {
+                                                        textContent: "Bild konnte nicht geladen werden.",
+                                                    })
+                                                );
+                                            }}
+                                            style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "cover",
+                                            }}
+                                        />
+
+                                        <button
+                                            type="button"
+                                            title="Bild entfernen"
+                                            onClick={() => void removeImage(url)}
+                                            style={{
+                                                position: "absolute",
+                                                top: 6,
+                                                right: 6,
+                                                width: 28,
+                                                height: 28,
+                                                borderRadius: "50%",
+                                                border: "1px solid #d1d5db",
+                                                background: "white",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                fontSize: 11,
+                                                padding: 0,
+                                                boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                                            }}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p>Nicht angegeben</p>
+                        )}
                     </div>
 
                     <div className="field">
@@ -182,7 +331,7 @@ export default function MyCompanyProfilePage() {
     }
 
     return (
-        <div className="formCard">
+        <div className="formCard profileEdit">
             <div className="formHeader">
                 <div>
                     <h2 style={{ margin: 0 }}>Unternehmensprofil bearbeiten</h2>
@@ -205,6 +354,15 @@ export default function MyCompanyProfilePage() {
                     </label>
 
                     <label className="field formFull">
+                        <span>Kurzbeschreibung *</span>
+                        <input
+                            value={shortDescription}
+                            onChange={(e) => setShortDescription(e.target.value)}
+                            placeholder="Kurze Beschreibung des Unternehmens"
+                        />
+                    </label>
+
+                    <label className="field formFull">
                         <span>Beschreibung *</span>
                         <textarea
                             value={description}
@@ -218,6 +376,24 @@ export default function MyCompanyProfilePage() {
                         <input value={website} onChange={(e) => setWebsite(e.target.value)} />
                     </label>
                 </div>
+
+                <label className="field uploadField">
+                    <span>Logo hochladen</span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                    />
+                </label>
+
+                <label className="field uploadField">
+                    <span>Unternehmensbild hochladen</span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    />
+                </label>
 
                 {error && <p className="error">{error}</p>}
 

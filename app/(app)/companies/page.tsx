@@ -330,7 +330,7 @@ export default function CompaniesPage() {
               <th style={{ width: "35%" }}>Beschreibung</th>
               <th style={{ width: "22%" }}>Website</th>
               <th style={{ width: "10%" }}>Status</th>
-              <th style={{ width: "10%" }}>Aktionen</th>
+              <th style={{ width: "7%" }}>Aktionen</th>
             </tr>
             </thead>
 

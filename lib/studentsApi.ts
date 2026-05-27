@@ -1,14 +1,11 @@
 import { apiFetch } from "./apiClient";
 
-export type StudentStatus = "Aktiv" | "Inaktiv";
-
 export type Student = {
   id: string;
+  userId: string;
   name: string;
-  email: string;
   studyProgram: string;
   semester: number | null;
-  status: StudentStatus;
 };
 
 type StudentApiDto = {
@@ -18,9 +15,6 @@ type StudentApiDto = {
   last_name?: string;
   study_program?: string;
   semester?: number;
-  email?: string;
-  eMail?: string;
-  status?: string | boolean | null;
 };
 
 export type UpdateStudentInput = {
@@ -28,28 +22,8 @@ export type UpdateStudentInput = {
   last_name?: string;
   study_program?: string;
   semester?: number;
-  email?: string;
 };
 
-function mapStudentStatus(value: unknown): StudentStatus {
-  if (typeof value === "boolean") {
-    return value ? "Aktiv" : "Inaktiv";
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (
-        normalized === "aktiv" ||
-        normalized === "active" ||
-        normalized === "1" ||
-        normalized === "true"
-    ) {
-      return "Aktiv";
-    }
-  }
-
-  return "Inaktiv";
-}
 
 function buildDisplayName(dto: StudentApiDto): string {
   const first = dto.first_name?.trim() ?? "";
@@ -60,12 +34,11 @@ function buildDisplayName(dto: StudentApiDto): string {
 
 function mapStudent(dto: StudentApiDto): Student {
   return {
-    id: String(dto.id ?? dto.user_id ?? crypto.randomUUID()),
+    id: String(dto.id ?? ""),
+    userId: String(dto.user_id ?? ""),
     name: buildDisplayName(dto),
-    email: dto.email?.trim() || dto.eMail?.trim() || "",
     studyProgram: dto.study_program?.trim() || "Nicht angegeben",
     semester: typeof dto.semester === "number" ? dto.semester : null,
-    status: mapStudentStatus(dto.status ?? true),
   };
 }
 

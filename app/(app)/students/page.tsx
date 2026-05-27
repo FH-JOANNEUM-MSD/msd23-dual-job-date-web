@@ -5,13 +5,7 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
 import { inviteStudent } from "@/lib/inviteApi";
-import {
-  getStudents,
-  updateStudent,
-  deleteStudent,
-  type Student,
-  type StudentStatus,
-} from "@/lib/studentsApi";
+import { getStudents, updateStudent, deleteStudent, type Student } from "@/lib/studentsApi";
 
 const DEFAULT_PROGRAM = "Mobile Software Development";
 
@@ -54,7 +48,6 @@ export default function StudentsPage() {
   const [email, setEmail] = useState("");
   const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [semester, setSemester] = useState(1);
-  const [status, setStatus] = useState<StudentStatus>("Aktiv");
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = useMemo(() => editingId !== null, [editingId]);
@@ -129,7 +122,6 @@ export default function StudentsPage() {
     setEmail("");
     setProgram(DEFAULT_PROGRAM);
     setSemester(1);
-    setStatus("Aktiv");
     setError(null);
     setInfo(null);
     dialogRef.current?.showModal();
@@ -139,10 +131,8 @@ export default function StudentsPage() {
     setOpenMenuId(null);
     setEditingId(s.id);
     setName(s.name);
-    setEmail(s.email);
     setProgram(s.studyProgram);
     setSemester(s.semester ?? 1);
-    setStatus(s.status);
     setError(null);
     setInfo(null);
     dialogRef.current?.showModal();
@@ -200,7 +190,6 @@ export default function StudentsPage() {
         last_name,
         study_program: trimmedProgram,
         semester: safeSemester,
-        email: trimmedEmail || undefined,
       });
 
       await loadStudents();
@@ -414,12 +403,10 @@ export default function StudentsPage() {
           <table className="table">
             <thead>
             <tr>
-              <th style={{ width: "24%" }}>Name</th>
-              <th style={{ width: "22%" }}>E-Mail</th>
-              <th style={{ width: "28%" }}>Akademisches Programm</th>
+              <th style={{ width: "30%" }}>Name</th>
+              <th style={{ width: "35%" }}>Akademisches Programm</th>
               <th style={{ width: "10%" }}>Semester</th>
-              <th style={{ width: "8%" }}>Status</th>
-              <th style={{ width: "8%" }}>Aktionen</th>
+              <th style={{ width: "7%" }}>Aktionen</th>
             </tr>
             </thead>
 
@@ -440,14 +427,8 @@ export default function StudentsPage() {
                 students.map((s) => (
                     <tr key={s.id}>
                       <td>{s.name}</td>
-                      <td>{s.email || <span className="muted">Nicht angegeben</span>}</td>
                       <td>{s.studyProgram}</td>
                       <td>{s.semester ?? "—"}</td>
-                      <td>
-                    <span className={`pill ${s.status === "Aktiv" ? "pillActive" : "pillInactive"}`}>
-                      {s.status}
-                    </span>
-                      </td>
 
                       <td style={{ textAlign: "right" }}>
                         <div className="kebab" data-kebab-root>
@@ -538,14 +519,16 @@ export default function StudentsPage() {
                 />
               </label>
 
-              <label className="field">
-                <span>E-Mail</span>
-                <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="z.B. student@example.com"
-                />
-              </label>
+              {!isEditing && (
+                  <label className="field">
+                    <span>E-Mail</span>
+                    <input
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="z.B. student@example.com"
+                    />
+                  </label>
+              )}
 
               <label className="field">
                 <span>Akademisches Programm</span>
@@ -567,15 +550,6 @@ export default function StudentsPage() {
                 />
               </label>
 
-              {isEditing && (
-                  <label className="field">
-                    <span>Status</span>
-                    <select value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
-                      <option value="Aktiv">Aktiv</option>
-                      <option value="Inaktiv">Inaktiv</option>
-                    </select>
-                  </label>
-              )}
             </div>
 
             {error && <p className="error">{error}</p>}

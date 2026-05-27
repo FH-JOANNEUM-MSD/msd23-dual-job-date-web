@@ -6,25 +6,36 @@ export type Company = {
     id: string;
     userId: string;
     name: string;
+    shortDescription: string;
     description: string;
     website: string;
+    logoUrl: string;
+    imageUrls: string[];
     status: CompanyStatus;
+    lastUpdated?: string;
 };
 
 type CompanyApiDto = {
     id?: string | number;
     user_id?: string;
     name?: string;
+    short_description?: string;
     description?: string;
     website?: string;
+    logo_url?: string;
+    image_urls?: string;
     active?: boolean;
     status?: string | boolean | null;
+    last_updated?: string;
 };
 
 export type UpdateCompanyInput = {
-    name: string;
+    name?: string;
+    short_description?: string;
     description?: string;
     website?: string;
+    logo_url?: string;
+    image_urls?: string;
     active?: boolean;
 };
 
@@ -51,10 +62,16 @@ function mapCompany(dto: CompanyApiDto): Company {
     return {
         id: String(dto.id ?? crypto.randomUUID()),
         userId: String(dto.user_id ?? ""),
-        name: dto.name?.trim() || "Unbekannt",
-        description: dto.description?.trim() || "Nicht angegeben",
+        name: dto.name?.trim() || "",
+        shortDescription: dto.short_description?.trim() || "",
+        description: dto.description?.trim() || "",
         website: dto.website?.trim() || "",
+        logoUrl: dto.logo_url?.trim() || "",
+        imageUrls: dto.image_urls
+            ? dto.image_urls.split(";").map((url) => url.trim()).filter(Boolean)
+            : [],
         status: mapCompanyStatus(dto),
+        lastUpdated: dto.last_updated,
     };
 }
 
@@ -80,4 +97,24 @@ export async function deleteCompany(id: string) {
 export async function getCompanyById(id: string): Promise<Company> {
     const data = await apiFetch<CompanyApiDto>(`/api/backend/companies/${id}`);
     return mapCompany(data);
+}
+
+export async function uploadCompanyLogo(companyId: string, file: File) {
+    const formData = new FormData();
+    formData.append("logo", file);
+
+    return apiFetch(`/api/backend/companies/${companyId}/logo`, {
+        method: "POST",
+        body: formData,
+    });
+}
+
+export async function uploadCompanyImage(companyId: string, file: File) {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    return apiFetch(`/api/backend/companies/${companyId}/images`, {
+        method: "POST",
+        body: formData,
+    });
 }

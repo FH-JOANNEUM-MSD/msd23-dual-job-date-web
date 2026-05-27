@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const response = await fetch(`${BACKEND_BASE_URL}/api/companies/active`, {
+        const response = await fetch(`${BACKEND_BASE_URL}/api/companies`, {
             method: "GET",
             headers: {
                 Authorization: authHeader,
