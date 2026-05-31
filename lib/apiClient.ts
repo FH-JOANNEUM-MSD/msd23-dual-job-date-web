@@ -1,4 +1,5 @@
-// lib/apiClient.ts
+import { getSupabaseClient } from "@/lib/supabaseClient";
+
 export class ApiError extends Error {
     status: number;
     details?: unknown;
@@ -11,20 +12,32 @@ export class ApiError extends Error {
     }
 }
 
-function getAccessToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("access_token");
+async function getAccessToken(): Promise<string | null> {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+        return null;
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+        return null;
+    }
+
+    return data.session?.access_token ?? null;
 }
 
 type ApiFetchOptions = RequestInit & {
     requiresAuth?: boolean;
+    authToken?: string;
 };
 
 export async function apiFetch<T>(
     path: string,
     options: ApiFetchOptions = {}
 ): Promise<T> {
-    const { requiresAuth = true, headers, ...rest } = options;
+    const { requiresAuth = true, authToken, headers, ...rest } = options;
     const finalHeaders = new Headers(headers ?? {});
     finalHeaders.set("Accept", "application/json");
 
@@ -38,7 +51,7 @@ export async function apiFetch<T>(
     }
 
     if (requiresAuth) {
-        const token = getAccessToken();
+        const token = authToken ?? (await getAccessToken());
         if (!token) {
             throw new ApiError("Kein Access Token gefunden. Bitte erneut einloggen.", 401);
         }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { getCurrentUser } from "@/lib/authApi";
 
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -35,14 +36,10 @@ export default function LoginPage() {
         return;
       }
 
-      const token = data.session?.access_token;
-
-      if (!token) {
+      if (!data.session?.access_token) {
         setError("Kein Access Token von Supabase erhalten.");
         return;
       }
-
-      localStorage.setItem("access_token", token);
 
       const me = await getCurrentUser();
 
