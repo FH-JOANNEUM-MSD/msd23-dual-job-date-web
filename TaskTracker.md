@@ -20,10 +20,24 @@
 - [] Als Administrator kann ich die Zuteilung von Studierenden zu einem ausgewählten Partnerunternehmen sehen 
 - [] Als Administrator kann ich die Zuteilung von Partnerunternehmen zu einer ausgewählten Studierenden sehen 
 - [] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen editieren (Uhrzeit ändern, Studierende ändern, Unternehmen ändern) Dabei verhindert die Business-Logik „ungültige“ Zuordnungen (gewählte Studierende zu dem gewählten Zeitpunkt bereits bei anderem Unternehmen zugeordnet; gewähltes Unternehmen zu dem gewählten Zeitpunkt bereits anderer Studierenden zugeordnet, etc.) 
-- [] excel muster für Christine
+- [X] excel muster für Christine
+
+### Excel Import Vorlagen
+
+#### Studierende
+
+| Vorname | Nachname   | E-Mail                     | Studiengang                 | Semester |
+| ------- | ---------- | -------------------------- | --------------------------- | -------- |
+| Max     | Mustermann | max.mustermann@example.com | Mobile Software Development | 1        |
+
+#### Unternehmen
+
+| Firmenname  | E-Mail           |
+| ----------- | ---------------- |
+| Muster GmbH | office@muster.at |
+
 
 ### Stakeholder Partnerunternehmen (Ivana)
-- [] Als Unternehmen kann ich mich in der App einloggen, um zu sehen, wie mein Unternehmensprofil in der App aussieht 
 - [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
 
 ### Tests 

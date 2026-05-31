@@ -100,9 +100,9 @@ export default function EditCompanyPage() {
           <h2 style={{ margin: 0 }}>Unternehmensprofil bearbeiten</h2>
         </div>
 
-        <button className="btn btnGhost" onClick={() => router.push("/companies")}>
-          Zurück
-        </button>
+        {/*<button className="btn btnGhost" onClick={() => router.push("/companies")}>*/}
+        {/*  Zurück*/}
+        {/*</button>*/}
       </div>
 
       <form onSubmit={onSave}>

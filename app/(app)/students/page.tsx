@@ -245,13 +245,13 @@ export default function StudentsPage() {
           return index === undefined ? "" : String(row[index] ?? "").trim();
         };
 
-        const firstName = getCell("firstname");
-        const lastName = getCell("lastname");
+        const firstName = getCell("firstname") || getCell("vorname");
+        const lastName = getCell("lastname") || getCell("nachname");
         const nameFromColumn = getCell("name");
         const fullName = `${firstName} ${lastName}`.trim() || nameFromColumn || "";
 
         const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
-        const studyProgram = getCell("studyprogram");
+        const studyProgram = getCell("studyprogram") || getCell("studiengang") || getCell("akademischesprogramm");
         const semesterRaw = getCell("semester");
         const semesterNumber = Number(semesterRaw);
 
@@ -364,9 +364,9 @@ export default function StudentsPage() {
               Excel importieren
             </button>
 
-            <button className="btn btnGhost" onClick={() => void loadStudents()}>
-              Neu laden
-            </button>
+            {/*<button className="btn btnGhost" onClick={() => void loadStudents()}>*/}
+            {/*  Neu laden*/}
+            {/*</button>*/}
 
             <button className="btn btnPrimary" onClick={openAddDialog}>
               + Studierende einladen

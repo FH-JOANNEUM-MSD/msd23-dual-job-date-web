@@ -279,9 +279,9 @@ export default function CompaniesPage() {
               Excel importieren
             </button>
 
-            <button className="btn btnGhost" onClick={() => void refresh()}>
-              Neu laden
-            </button>
+            {/*<button className="btn btnGhost" onClick={() => void refresh()}>*/}
+            {/*  Neu laden*/}
+            {/*</button>*/}
 
             <button className="btn btnPrimary" onClick={openInviteDialog}>
               + Unternehmen einladen
@@ -414,14 +414,14 @@ export default function CompaniesPage() {
                     Profil bearbeiten
                   </button>
 
-                  <button
-                      type="button"
-                      role="menuitem"
-                      className="kebabItem kebabDanger"
-                      onClick={() => openDeleteDialog(activeCompany.id)}
-                  >
-                    Löschen
-                  </button>
+                  {/*<button*/}
+                  {/*    type="button"*/}
+                  {/*    role="menuitem"*/}
+                  {/*    className="kebabItem kebabDanger"*/}
+                  {/*    onClick={() => openDeleteDialog(activeCompany.id)}*/}
+                  {/*>*/}
+                  {/*  Löschen*/}
+                  {/*</button>*/}
                 </div>,
                 document.body
             )

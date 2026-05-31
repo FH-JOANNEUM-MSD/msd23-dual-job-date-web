@@ -1,5 +1,6 @@
 "use client";
 
+import * as XLSX from "xlsx";
 import React, { useEffect, useMemo, useState } from "react";
 import { getStudents, Student } from "@/lib/studentsApi";
 import { getCompanies, Company } from "@/lib/companiesApi";
@@ -23,15 +24,16 @@ type RankedCandidate = {
   slot: string;
 };
 
-function generateSlots(startTime: string, count: number, durationMinutes: number): string[] {
+function generateSlots(startTime: string, count: number, durationMinutes: number, pauseAfterSlots: number, pauseMinutes: number): string[] {
   if (!startTime || count <= 0 || durationMinutes <= 0) return [];
-
   const [h, m] = startTime.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return [];
-
   const baseMinutes = h * 60 + m;
+
   return Array.from({ length: count }, (_, i) => {
-    const total = baseMinutes + i * durationMinutes;
+
+    const pauseCount = pauseAfterSlots > 0 ? Math.floor(i / pauseAfterSlots) : 0;
+    const total = baseMinutes + i * durationMinutes + pauseCount * pauseMinutes;
     const hh = String(Math.floor(total / 60)).padStart(2, "0");
     const mm = String(total % 60).padStart(2, "0");
     return `${hh}:${mm}`;
@@ -95,6 +97,20 @@ function generateAutomaticAssignments(
       return a.student.name.localeCompare(b.student.name);
     });
 
+  let slotCursor = 0;
+
+  function findNextSlotForCompany(companyId: string): string | null {
+    for (let offset = 0; offset < slots.length; offset++) {
+      const slot = slots[(slotCursor + offset) % slots.length];
+
+      if (!usedSeats.has(`${companyId}::${slot}`)) {
+        return slot;
+      }
+    }
+
+    return null;
+  }
+
   for (const entry of orderedStudents) {
     const { student } = entry;
 
@@ -106,9 +122,10 @@ const rankedCandidates = companies
       return null;
     }
 
-    const nextFreeSlot = slots.find(
-      (slot) => !usedSeats.has(`${company.id}::${slot}`)
-    );
+    // const nextFreeSlot = slots.find(
+    //   (slot) => !usedSeats.has(`${company.id}::${slot}`)
+    // );
+    const nextFreeSlot = findNextSlotForCompany(company.id);
 
     if (!nextFreeSlot) {
       return null;
@@ -141,6 +158,7 @@ const rankedCandidates = companies
     };
 
     usedSeats.add(`${chosen.company.id}::${chosen.slot}`);
+    slotCursor = (slots.indexOf(chosen.slot) + 1) % slots.length;
     companyLoads.set(chosen.company.id, chosen.currentLoad + 1);
   }
 
@@ -155,17 +173,85 @@ export default function EventsPage() {
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [studyProgram, setStudyProgram] = useState("");
-  const [semester, setSemester] = useState<number>(1);
+  const [semester, setSemester] = useState<number>(0);
   const [startTime, setStartTime] = useState("09:00");
   const [slotCount, setSlotCount] = useState(6);
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(15);
-
   const [assignments, setAssignments] = useState<Record<string, AssignmentDraft>>({});
   const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
+  const [pauseAfterSlots, setPauseAfterSlots] = useState(3);
+  const [pauseMinutes, setPauseMinutes] = useState(15);
+
+  function timeToMinutes(time: string) {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function minutesToTime(total: number) {
+    const h = String(Math.floor(total / 60)).padStart(2, "0");
+    const m = String(total % 60).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  function exportEventsToExcel() {
+    const rows = events.flatMap((event) => {
+      const sortedAssignments = [...event.assignments].sort((a, b) =>
+          a.slot.localeCompare(b.slot)
+      );
+
+      const result: Record<string, string | number>[] = [];
+      let previousSlot: string | null = null;
+
+      for (const assignment of sortedAssignments) {
+        if (previousSlot && assignment.slot !== previousSlot) {
+          const gap = timeToMinutes(assignment.slot) - timeToMinutes(previousSlot);
+
+          if (gap > event.slotDurationMinutes) {
+            const pauseStart = minutesToTime(timeToMinutes(previousSlot) + event.slotDurationMinutes
+            );
+
+            result.push({
+              Titel: "Pause",
+              Datum: "Pause",
+              Programm: "Pause",
+              Semester: "Pause",
+              Uhrzeit: `${pauseStart} - ${assignment.slot}`,
+              Unternehmen: "Pause",
+              Studierende: "Pause",
+            });
+          }
+        }
+
+        result.push({
+          Titel: event.title,
+          Datum: event.date,
+          Programm: event.studyProgram,
+          Semester: event.semester === 0 ? "Alle Semester" : event.semester,
+          Uhrzeit: assignment.slot,
+          Unternehmen: assignment.companyName,
+          Studierende: assignment.studentName,
+        });
+
+        previousSlot = assignment.slot;
+      }
+
+      return result;
+    });
+
+    if (rows.length === 0) {
+      setError("Es gibt noch keine gespeicherten Termine für den Export.");
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Termine");
+    XLSX.writeFile(workbook, "job-dating-termine.xlsx");
+  }
 
   useEffect(() => {
     async function load() {
@@ -184,11 +270,8 @@ export default function EventsPage() {
       setPreferences(preferencesData);
 
         const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
-        const firstSemester =
-          studentsData.find((s) => s.studyProgram === firstProgram)?.semester ?? 1;
-
         setStudyProgram(firstProgram);
-        setSemester(firstSemester || 1);
+        setSemester(0);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Daten konnten nicht geladen werden.";
         setError(message);
@@ -215,20 +298,23 @@ export default function EventsPage() {
   }, [students, studyProgram]);
 
   const filteredStudents = useMemo(() => {
-    return students.filter(
-      (s) => s.studyProgram === studyProgram && s.semester === semester
-    );
+    return students.filter((s) => {
+      const matchesProgram = s.studyProgram === studyProgram;
+      const matchesSemester = semester === 0 || s.semester === semester;
+
+      return matchesProgram && matchesSemester;
+    });
   }, [students, studyProgram, semester]);
 
   const slots = useMemo(() => {
-    return generateSlots(startTime, slotCount, slotDurationMinutes);
-  }, [startTime, slotCount, slotDurationMinutes]);
+    return generateSlots(startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes);
+  }, [startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes]);
 
   useEffect(() => {
     if (!studyProgram) return;
-    if (semestersForProgram.length === 0) return;
-    if (!semestersForProgram.includes(semester)) {
-      setSemester(semestersForProgram[0]);
+
+    if (semester !== 0 && !semestersForProgram.includes(semester)) {
+      setSemester(0);
     }
   }, [studyProgram, semestersForProgram, semester]);
 
@@ -275,10 +361,7 @@ export default function EventsPage() {
       setError("Bitte ein akademisches Programm auswählen.");
       return;
     }
-    if (!semester) {
-      setError("Bitte ein Semester auswählen.");
-      return;
-    }
+
     if (slots.length === 0) {
       setError("Bitte gültige Zeitslots definieren.");
       return;
@@ -371,15 +454,17 @@ export default function EventsPage() {
               onChange={(e) => setSemester(Number(e.target.value))}
               disabled={!studyProgram}
             >
+              <option value={0}>Alle Semester</option>
+
               {semestersForProgram.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  Semester {value}
                 </option>
               ))}
             </select>
           </label>
 
-          <label className="field">
+          <label className="field formFull">
             <span>Startzeit</span>
             <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           </label>
@@ -404,11 +489,39 @@ export default function EventsPage() {
               onChange={(e) => setSlotDurationMinutes(Number(e.target.value))}
             />
           </label>
+
+          <label className="field">
+            <span>Pause nach Anzahl Slots</span>
+            <input
+                type="number"
+                min={0}
+                value={pauseAfterSlots}
+                onChange={(e) => setPauseAfterSlots(Number(e.target.value))}
+            />
+          </label>
+
+          <label className="field">
+            <span>Pausendauer (Minuten)</span>
+            <input
+                type="number"
+                min={0}
+                step={5}
+                value={pauseMinutes}
+                onChange={(e) => setPauseMinutes(Number(e.target.value))}
+            />
+          </label>
         </div>
 
         <div style={{ marginTop: 14 }}>
           <strong>Generierte Slots:</strong>{" "}
-          {slots.length > 0 ? slots.join(", ") : "Keine"}
+          {slots.length > 0
+              ? slots
+                  .map((slot, index) => {
+                    const showPause = pauseAfterSlots > 0 && pauseMinutes > 0 && index > 0 && index % pauseAfterSlots === 0;
+                    return `${showPause ? `Pause ${pauseMinutes} Min., ` : ""}${slot}`;
+                  })
+                  .join(", ")
+              : "Keine"}
         </div>
 
         {matchingInfo && (
@@ -425,6 +538,15 @@ export default function EventsPage() {
           </button>
         </div>
       </div>
+
+      <h3 style={{ margin: "18px 0 6px" }}>
+        Zuweisungen prüfen und anpassen
+      </h3>
+
+      <p className="muted" style={{ margin: "0 0 10px" }}>
+        Änderungen an Unternehmen und Zeitslots werden erst durch „Termin speichern“ übernommen.
+      </p>
+
 
       <div className="tableWrap" style={{ marginBottom: 16 }}>
         <table className="table">
@@ -489,6 +611,19 @@ export default function EventsPage() {
         </table>
       </div>
 
+
+      <div
+          className="pageHeader"
+          style={{ marginTop: 18, marginBottom: 12 }}
+      >
+        <h3 style={{ margin: 0 }}>Gespeicherte Termine</h3>
+
+        <button type="button" className="btn" onClick={exportEventsToExcel}>
+          Excel exportieren
+        </button>
+      </div>
+
+
       <div className="tableWrap">
         <table className="table">
           <thead>
@@ -512,7 +647,7 @@ export default function EventsPage() {
                   <td>{event.title}</td>
                   <td>{event.date}</td>
                   <td>{event.studyProgram}</td>
-                  <td>{event.semester}</td>
+                  <td>{event.semester === 0 ? "Alle Semester" : event.semester}</td>
                   <td>{event.assignments.length}</td>
                   <td>
                     <button
