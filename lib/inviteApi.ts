@@ -47,3 +47,16 @@ export async function inviteCompany(params: {
     }),
   });
 }
+
+export async function resendInvite(params: {
+  email: string;
+  role: "student" | "company";
+}) {
+  return apiFetch<{ message: string }>("/api/backend/resend-invite", {
+    method: "POST",
+    body: JSON.stringify({
+      email: params.email.trim(),
+      role: params.role,
+    }),
+  });
+}

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
-import { inviteCompany } from "@/lib/inviteApi";
+import { inviteCompany, resendInvite } from "@/lib/inviteApi";
 import { useCompaniesStore } from "@/lib/companiesStore";
 
 function isValidEmail(email: string) {
@@ -19,22 +19,21 @@ function normalizeHeader(value: string) {
 export default function CompaniesPage() {
   const router = useRouter();
   const { companies, isLoading, loadError, refresh, remove } = useCompaniesStore();
-
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const anchorBtnRef = useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const resendDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [resendEmail, setResendEmail] = useState("");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -86,6 +85,35 @@ export default function CompaniesPage() {
     setError(null);
     setInfo(null);
     dialogRef.current?.showModal();
+  }
+
+  function openResendDialog() {
+    setOpenMenuId(null);
+    setResendEmail("");
+    setError(null);
+    setInfo(null);
+    resendDialogRef.current?.showModal();
+  }
+
+  async function onResendInvite(e: React.FormEvent) {
+    e.preventDefault();
+
+    const trimmedEmail = resendEmail.trim();
+
+    if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
+    if (!isValidEmail(trimmedEmail)) return setError("Bitte gültige E-Mail eingeben.");
+
+    try {
+      await resendInvite({
+        email: trimmedEmail,
+        role: "company",
+      });
+
+      setInfo("Einladung wurde erneut versendet.");
+      resendDialogRef.current?.close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Einladung konnte nicht erneut versendet werden.");
+    }
   }
 
   function closeDialog() {
@@ -414,6 +442,15 @@ export default function CompaniesPage() {
                     Profil bearbeiten
                   </button>
 
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem"
+                      onClick={openResendDialog}
+                  >
+                    Einladung erneut senden
+                  </button>
+
                   {/*<button*/}
                   {/*    type="button"*/}
                   {/*    role="menuitem"*/}
@@ -431,9 +468,6 @@ export default function CompaniesPage() {
           <form method="dialog" className="dialogInner" onSubmit={onInvite}>
             <div className="dialogHeader">
               <h3 style={{ margin: 0 }}>Unternehmen einladen</h3>
-              <button type="button" className="btn btnGhost" onClick={closeDialog} aria-label="Close">
-                ✕
-              </button>
             </div>
 
             <div className="grid">
@@ -484,6 +518,41 @@ export default function CompaniesPage() {
               </button>
             </div>
           </div>
+        </dialog>
+
+        <dialog ref={resendDialogRef} className="dialog">
+          <form className="dialogInner" onSubmit={onResendInvite}>
+            <div className="dialogHeader">
+              <h3 style={{ margin: 0 }}>Einladung erneut senden</h3>
+
+            </div>
+
+            <label className="field">
+              <span>E-Mail</span>
+              <input
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="firma@example.com"
+                  autoFocus
+              />
+            </label>
+
+            {error && <p className="error">{error}</p>}
+
+            <div className="dialogActions">
+              <button
+                  type="button"
+                  className="btn"
+                  onClick={() => resendDialogRef.current?.close()}
+              >
+                Abbrechen
+              </button>
+
+              <button type="submit" className="btn btnPrimary">
+                Einladung erneut senden
+              </button>
+            </div>
+          </form>
         </dialog>
       </>
   );

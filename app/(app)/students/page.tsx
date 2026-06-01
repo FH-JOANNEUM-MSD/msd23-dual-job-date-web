@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { ApiError } from "@/lib/apiClient";
-import { inviteStudent } from "@/lib/inviteApi";
+import { inviteStudent, resendInvite } from "@/lib/inviteApi";
 import { getStudents, updateStudent, deleteStudent, type Student } from "@/lib/studentsApi";
 
 const DEFAULT_PROGRAM = "Mobile Software Development";
@@ -30,27 +30,23 @@ export default function StudentsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const anchorBtnRef = useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
-
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [semester, setSemester] = useState(1);
   const [error, setError] = useState<string | null>(null);
-
   const isEditing = useMemo(() => editingId !== null, [editingId]);
+  const resendDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [resendEmail, setResendEmail] = useState("");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -136,6 +132,35 @@ export default function StudentsPage() {
     setError(null);
     setInfo(null);
     dialogRef.current?.showModal();
+  }
+
+  function openResendDialog() {
+    setOpenMenuId(null);
+    setResendEmail("");
+    setError(null);
+    setInfo(null);
+    resendDialogRef.current?.showModal();
+  }
+
+  async function onResendInvite(e: React.FormEvent) {
+    e.preventDefault();
+
+    const trimmedEmail = resendEmail.trim();
+
+    if (!trimmedEmail) return setError("Bitte E-Mail eingeben.");
+    if (!isValidEmail(trimmedEmail)) return setError("Bitte gültige E-Mail eingeben.");
+
+    try {
+      await resendInvite({
+        email: trimmedEmail,
+        role: "student",
+      });
+
+      setInfo("Einladung wurde erneut versendet.");
+      resendDialogRef.current?.close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Einladung konnte nicht erneut versendet werden.");
+    }
   }
 
   function closeDialog() {
@@ -485,6 +510,16 @@ export default function StudentsPage() {
                   >
                     Löschen
                   </button>
+
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem"
+                      onClick={openResendDialog}
+                  >
+                    Einladung erneut senden
+                  </button>
+
                 </div>,
                 document.body
             )
@@ -503,9 +538,6 @@ export default function StudentsPage() {
               <h3 style={{ margin: 0 }}>
                 {isEditing ? "Studierende bearbeiten" : "Studierende einladen"}
               </h3>
-              <button type="button" className="btn btnGhost" onClick={closeDialog}>
-                ✕
-              </button>
             </div>
 
             <div className="grid">
@@ -549,7 +581,6 @@ export default function StudentsPage() {
                     onChange={(e) => setSemester(clampSemester(Number(e.target.value)))}
                 />
               </label>
-
             </div>
 
             {error && <p className="error">{error}</p>}
@@ -584,6 +615,40 @@ export default function StudentsPage() {
               </button>
             </div>
           </div>
+        </dialog>
+
+        <dialog ref={resendDialogRef} className="dialog">
+          <form className="dialogInner" onSubmit={onResendInvite}>
+            <div className="dialogHeader">
+              <h3 style={{ margin: 0 }}>Einladung erneut senden</h3>
+            </div>
+
+            <label className="field">
+              <span>E-Mail</span>
+              <input
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="student@example.com"
+                  autoFocus
+              />
+            </label>
+
+            {error && <p className="error">{error}</p>}
+
+            <div className="dialogActions">
+              <button
+                  type="button"
+                  className="btn"
+                  onClick={() => resendDialogRef.current?.close()}
+              >
+                Abbrechen
+              </button>
+
+              <button type="submit" className="btn btnPrimary">
+                Einladung erneut senden
+              </button>
+            </div>
+          </form>
         </dialog>
       </>
   );
