@@ -210,6 +210,27 @@ export default function EventsPage() {
     return `${h}:${m}`;
   }
 
+  function isCompanySlotTakenInAssignments(
+    currentAssignments: Record<string, AssignmentDraft>,
+    currentStudentId: string,
+    companyId: string,
+    slot: string
+  ) {
+    if (!companyId || !slot) return false;
+
+    return Object.entries(currentAssignments).some(([studentId, draft]) => {
+      return (
+        studentId !== currentStudentId &&
+        draft.companyId === companyId &&
+        draft.slot === slot
+      );
+    });
+  }
+
+  function isCompanySlotTaken(currentStudentId: string, companyId: string, slot: string) {
+    return isCompanySlotTakenInAssignments(assignments, currentStudentId, companyId, slot);
+  }
+
   function exportEventsToExcel() {
     const rows = events.flatMap((event) => {
       const sortedAssignments = [...event.assignments].sort((a, b) =>
@@ -362,15 +383,64 @@ export default function EventsPage() {
     }
   }, [autoAssignments, filteredStudents, isEditingEvent]);
 
+  const assignmentRows = useMemo(() => {
+    return [...filteredStudents].sort((a, b) => {
+      const slotA = assignments[a.id]?.slot ?? "99:99";
+      const slotB = assignments[b.id]?.slot ?? "99:99";
+
+      if (slotA !== slotB) {
+        return slotA.localeCompare(slotB);
+      }
+
+      const companyA =
+        companies.find((company) => company.id === assignments[a.id]?.companyId)?.name ?? "";
+      const companyB =
+        companies.find((company) => company.id === assignments[b.id]?.companyId)?.name ?? "";
+
+      if (companyA !== companyB) {
+        return companyA.localeCompare(companyB);
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredStudents, assignments, companies]);
+
   function updateAssignment(student: Student, patch: Partial<AssignmentDraft>) {
-    setAssignments((prev) => ({
-      ...prev,
-      [student.id]: {
-        companyId: prev[student.id]?.companyId ?? "",
-        slot: prev[student.id]?.slot ?? "",
-        ...patch,
-      },
-    }));
+    setError(null);
+
+    setAssignments((prev) => {
+      const currentDraft = prev[student.id] ?? { companyId: "", slot: "" };
+
+      const nextDraft: AssignmentDraft = {
+        companyId: patch.companyId ?? currentDraft.companyId,
+        slot: patch.slot ?? currentDraft.slot,
+      };
+
+      if (
+        nextDraft.companyId &&
+        nextDraft.slot &&
+        isCompanySlotTakenInAssignments(
+          prev,
+          student.id,
+          nextDraft.companyId,
+          nextDraft.slot
+        )
+      ) {
+        const companyName =
+          companies.find((company) => company.id === nextDraft.companyId)?.name ?? "Dieses Unternehmen";
+
+        setError(
+          `${companyName} ist um ${nextDraft.slot} bereits einem anderen Studierenden zugeordnet.`
+        );
+
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [student.id]: nextDraft,
+      };
+    });
   }
 
   function openEventForEdit(event: JobDatingEvent) {
@@ -434,7 +504,10 @@ export default function EventsPage() {
           slot: draft.slot,
         };
       })
-      .filter((assignment): assignment is JobDatingEvent["assignments"][number] => assignment !== null);
+      .filter(
+        (assignment): assignment is JobDatingEvent["assignments"][number] =>
+          assignment !== null
+      );
   }
 
   function validateAssignments(eventAssignments: JobDatingEvent["assignments"]): string | null {
@@ -717,49 +790,68 @@ export default function EventsPage() {
               <tr>
                 <td colSpan={4}>Lade Daten…</td>
               </tr>
-            ) : filteredStudents.length === 0 ? (
+            ) : assignmentRows.length === 0 ? (
               <tr>
                 <td colSpan={4}>Keine Studierende für diese Auswahl gefunden.</td>
               </tr>
             ) : (
-              filteredStudents.map((student) => (
-                <tr key={student.id}>
-                  <td>{student.name}</td>
-                  <td>{student.studyProgram}</td>
-                  <td>
-                    <select
-                      className="tableSelect"
-                      value={assignments[student.id]?.companyId ?? ""}
-                      onChange={(e) =>
-                        updateAssignment(student, { companyId: e.target.value })
-                      }
-                    >
-                      <option value="">Keine Zuordnung</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      className="tableSelect"
-                      value={assignments[student.id]?.slot ?? ""}
-                      onChange={(e) =>
-                        updateAssignment(student, { slot: e.target.value })
-                      }
-                    >
-                      <option value="">Keine Zuordnung</option>
-                      {activeSlots.map((slot) => (
-                        <option key={slot} value={slot}>
-                          {slot}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))
+              assignmentRows.map((student) => {
+                const selectedCompanyId = assignments[student.id]?.companyId ?? "";
+                const selectedSlot = assignments[student.id]?.slot ?? "";
+
+                return (
+                  <tr key={student.id}>
+                    <td>{student.name}</td>
+                    <td>{student.studyProgram}</td>
+                    <td>
+                      <select
+                        className="tableSelect"
+                        value={selectedCompanyId}
+                        onChange={(e) =>
+                          updateAssignment(student, { companyId: e.target.value })
+                        }
+                      >
+                        <option value="">Keine Zuordnung</option>
+                        {companies.map((company) => {
+                          const isTaken = selectedSlot
+                            ? isCompanySlotTaken(student.id, company.id, selectedSlot)
+                            : false;
+
+                          return (
+                            <option key={company.id} value={company.id} disabled={isTaken}>
+                              {company.name}
+                              {isTaken ? " (belegt)" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className="tableSelect"
+                        value={selectedSlot}
+                        onChange={(e) =>
+                          updateAssignment(student, { slot: e.target.value })
+                        }
+                      >
+                        <option value="">Keine Zuordnung</option>
+                        {activeSlots.map((slot) => {
+                          const isTaken = selectedCompanyId
+                            ? isCompanySlotTaken(student.id, selectedCompanyId, slot)
+                            : false;
+
+                          return (
+                            <option key={slot} value={slot} disabled={isTaken}>
+                              {slot}
+                              {isTaken ? " (belegt)" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
