@@ -26,6 +26,12 @@ export default function DashboardPage() {
           <p>Job-Dating Termine verwalten.</p>
           <Link href="/events">Öffnen</Link>
         </div>
+
+        <div className="card">
+          <h3>Präferenzen</h3>
+          <p>Likes und Dislikes von Studierenden einsehen.</p>
+          <Link href="/preferences">Öffnen</Link>
+        </div>
       </div>
     </>
   );
