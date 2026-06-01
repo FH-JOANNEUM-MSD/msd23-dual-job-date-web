@@ -15,11 +15,11 @@
 
 ### Vorbereitung Dual Job Dating Event 
 - [X] Als Administrator sehe ich welche Studierenden welches Unternehmen geliked/disliked hat 
-- [] Als Administrator kann ich das „Matching“ zwischen Studierenden und Partnerunternehmen für ein Job Dating Event anstoßen.  
-- [] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen sehen (Z.B: Zeile: Partnerunternehmen, Spalte: Studierende; evtl. Darstellung umschaltbar)
-- [] Als Administrator kann ich die Zuteilung von Studierenden zu einem ausgewählten Partnerunternehmen sehen 
-- [] Als Administrator kann ich die Zuteilung von Partnerunternehmen zu einer ausgewählten Studierenden sehen 
-- [] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen editieren (Uhrzeit ändern, Studierende ändern, Unternehmen ändern) Dabei verhindert die Business-Logik „ungültige“ Zuordnungen (gewählte Studierende zu dem gewählten Zeitpunkt bereits bei anderem Unternehmen zugeordnet; gewähltes Unternehmen zu dem gewählten Zeitpunkt bereits anderer Studierenden zugeordnet, etc.) 
+- [] Als Administrator kann ich das „Matching“ zwischen Studierenden und Partnerunternehmen für ein Job Dating Event anstoßen. --> noch ausständig, dass bei getStudents E-Mail mitgesandt wird  
+- [X] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen sehen (Z.B: Zeile: Partnerunternehmen, Spalte: Studierende; evtl. Darstellung umschaltbar)
+- [X] Als Administrator kann ich die Zuteilung von Studierenden zu einem ausgewählten Partnerunternehmen sehen 
+- [X] Als Administrator kann ich die Zuteilung von Partnerunternehmen zu einer ausgewählten Studierenden sehen 
+- [X] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen editieren (Uhrzeit ändern, Studierende ändern, Unternehmen ändern) Dabei verhindert die Business-Logik „ungültige“ Zuordnungen (gewählte Studierende zu dem gewählten Zeitpunkt bereits bei anderem Unternehmen zugeordnet; gewähltes Unternehmen zu dem gewählten Zeitpunkt bereits anderer Studierenden zugeordnet, etc.) 
 - [X] excel muster für Christine
 
 ### Excel Import Vorlagen

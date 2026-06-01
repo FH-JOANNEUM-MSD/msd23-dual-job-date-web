@@ -55,9 +55,17 @@ export function useEventsStore() {
   return useMemo(
     () => ({
       events,
+
       addEvent(event: JobDatingEvent) {
         setEvents((prev) => [event, ...prev]);
       },
+
+      updateEvent(updatedEvent: JobDatingEvent) {
+        setEvents((prev) =>
+          prev.map((event) => (event.id === updatedEvent.id ? updatedEvent : event))
+        );
+      },
+
       removeEvent(id: string) {
         setEvents((prev) => prev.filter((e) => e.id !== id));
       },

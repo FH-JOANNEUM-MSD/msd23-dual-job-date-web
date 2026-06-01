@@ -24,14 +24,21 @@ type RankedCandidate = {
   slot: string;
 };
 
-function generateSlots(startTime: string, count: number, durationMinutes: number, pauseAfterSlots: number, pauseMinutes: number): string[] {
+function generateSlots(
+  startTime: string,
+  count: number,
+  durationMinutes: number,
+  pauseAfterSlots: number,
+  pauseMinutes: number
+): string[] {
   if (!startTime || count <= 0 || durationMinutes <= 0) return [];
+
   const [h, m] = startTime.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return [];
+
   const baseMinutes = h * 60 + m;
 
   return Array.from({ length: count }, (_, i) => {
-
     const pauseCount = pauseAfterSlots > 0 ? Math.floor(i / pauseAfterSlots) : 0;
     const total = baseMinutes + i * durationMinutes + pauseCount * pauseMinutes;
     const hh = String(Math.floor(total / 60)).padStart(2, "0");
@@ -114,42 +121,39 @@ function generateAutomaticAssignments(
   for (const entry of orderedStudents) {
     const { student } = entry;
 
-const rankedCandidates = companies
-  .map((company) => {
-    const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
+    const rankedCandidates = companies
+      .map((company) => {
+        const pref = prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
 
-    if (pref === "dislike") {
-      return null;
-    }
+        if (pref === "dislike") {
+          return null;
+        }
 
-    // const nextFreeSlot = slots.find(
-    //   (slot) => !usedSeats.has(`${company.id}::${slot}`)
-    // );
-    const nextFreeSlot = findNextSlotForCompany(company.id);
+        const nextFreeSlot = findNextSlotForCompany(company.id);
 
-    if (!nextFreeSlot) {
-      return null;
-    }
+        if (!nextFreeSlot) {
+          return null;
+        }
 
-    return {
-      company,
-      pref,
-      score: preferenceScore(pref),
-      currentLoad: companyLoads.get(company.id) ?? 0,
-      slot: nextFreeSlot,
-    };
-  })
-  .filter((candidate): candidate is RankedCandidate => candidate !== null)
-  .sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (a.currentLoad !== b.currentLoad) return a.currentLoad - b.currentLoad;
-    if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
-    return a.company.name.localeCompare(b.company.name);
-  });
+        return {
+          company,
+          pref,
+          score: preferenceScore(pref),
+          currentLoad: companyLoads.get(company.id) ?? 0,
+          slot: nextFreeSlot,
+        };
+      })
+      .filter((candidate): candidate is RankedCandidate => candidate !== null)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.currentLoad !== b.currentLoad) return a.currentLoad - b.currentLoad;
+        if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
+        return a.company.name.localeCompare(b.company.name);
+      });
 
     const chosen = rankedCandidates[0];
     if (!chosen) {
-      continue; // acceptable that a student remains unmatched
+      continue;
     }
 
     result[student.id] = {
@@ -166,13 +170,14 @@ const rankedCandidates = companies
 }
 
 export default function EventsPage() {
-  const { events, addEvent, removeEvent } = useEventsStore();
+  const { events, addEvent, updateEvent, removeEvent } = useEventsStore();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [studyProgram, setStudyProgram] = useState("");
@@ -180,10 +185,19 @@ export default function EventsPage() {
   const [startTime, setStartTime] = useState("09:00");
   const [slotCount, setSlotCount] = useState(6);
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(15);
-  const [assignments, setAssignments] = useState<Record<string, AssignmentDraft>>({});
-  const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
   const [pauseAfterSlots, setPauseAfterSlots] = useState(3);
   const [pauseMinutes, setPauseMinutes] = useState(15);
+
+  const [assignments, setAssignments] = useState<Record<string, AssignmentDraft>>({});
+  const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+
+  const editingEvent = useMemo(
+    () => events.find((event) => event.id === editingEventId) ?? null,
+    [events, editingEventId]
+  );
+
+  const isEditingEvent = editingEvent !== null;
 
   function timeToMinutes(time: string) {
     const [h, m] = time.split(":").map(Number);
@@ -199,7 +213,7 @@ export default function EventsPage() {
   function exportEventsToExcel() {
     const rows = events.flatMap((event) => {
       const sortedAssignments = [...event.assignments].sort((a, b) =>
-          a.slot.localeCompare(b.slot)
+        a.slot.localeCompare(b.slot)
       );
 
       const result: Record<string, string | number>[] = [];
@@ -210,7 +224,8 @@ export default function EventsPage() {
           const gap = timeToMinutes(assignment.slot) - timeToMinutes(previousSlot);
 
           if (gap > event.slotDurationMinutes) {
-            const pauseStart = minutesToTime(timeToMinutes(previousSlot) + event.slotDurationMinutes
+            const pauseStart = minutesToTime(
+              timeToMinutes(previousSlot) + event.slotDurationMinutes
             );
 
             result.push({
@@ -259,15 +274,15 @@ export default function EventsPage() {
         setLoading(true);
         setError(null);
 
-      const [studentsData, companiesData, preferencesData] = await Promise.all([
-        getStudents(),
-        getCompanies(),
-        getAllPreferences(),
-      ]);
+        const [studentsData, companiesData, preferencesData] = await Promise.all([
+          getStudents(),
+          getCompanies(),
+          getAllPreferences(),
+        ]);
 
-      setStudents(studentsData);
-      setCompanies(companiesData);
-      setPreferences(preferencesData);
+        setStudents(studentsData);
+        setCompanies(companiesData);
+        setPreferences(preferencesData);
 
         const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
         setStudyProgram(firstProgram);
@@ -306,9 +321,17 @@ export default function EventsPage() {
     });
   }, [students, studyProgram, semester]);
 
-  const slots = useMemo(() => {
-    return generateSlots(startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes);
+  const generatedSlots = useMemo(() => {
+    return generateSlots(
+      startTime,
+      slotCount,
+      slotDurationMinutes,
+      pauseAfterSlots,
+      pauseMinutes
+    );
   }, [startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes]);
+
+  const activeSlots = editingEvent ? editingEvent.slots : generatedSlots;
 
   useEffect(() => {
     if (!studyProgram) return;
@@ -319,10 +342,12 @@ export default function EventsPage() {
   }, [studyProgram, semestersForProgram, semester]);
 
   const autoAssignments = useMemo(() => {
-    return generateAutomaticAssignments(filteredStudents, companies, slots, preferences);
-  }, [filteredStudents, companies, slots, preferences]);
+    return generateAutomaticAssignments(filteredStudents, companies, activeSlots, preferences);
+  }, [filteredStudents, companies, activeSlots, preferences]);
 
   useEffect(() => {
+    if (isEditingEvent) return;
+
     setAssignments(autoAssignments);
 
     const matchedCount = Object.keys(autoAssignments).length;
@@ -335,7 +360,7 @@ export default function EventsPage() {
     } else {
       setMatchingInfo(null);
     }
-  }, [autoAssignments, filteredStudents]);
+  }, [autoAssignments, filteredStudents, isEditingEvent]);
 
   function updateAssignment(student: Student, patch: Partial<AssignmentDraft>) {
     setAssignments((prev) => ({
@@ -348,26 +373,52 @@ export default function EventsPage() {
     }));
   }
 
-  function saveEvent() {
-    if (!title.trim()) {
-      setError("Bitte einen Titel für den Termin eingeben.");
-      return;
-    }
-    if (!date) {
-      setError("Bitte ein Datum auswählen.");
-      return;
-    }
-    if (!studyProgram) {
-      setError("Bitte ein akademisches Programm auswählen.");
-      return;
-    }
+  function openEventForEdit(event: JobDatingEvent) {
+    setError(null);
+    setEditingEventId(event.id);
 
-    if (slots.length === 0) {
-      setError("Bitte gültige Zeitslots definieren.");
-      return;
-    }
+    setTitle(event.title);
+    setDate(event.date);
+    setStudyProgram(event.studyProgram);
+    setSemester(event.semester);
+    setSlotDurationMinutes(event.slotDurationMinutes);
 
-    const builtAssignments = filteredStudents
+    const eventAssignments: Record<string, AssignmentDraft> = {};
+
+    event.assignments.forEach((assignment) => {
+      eventAssignments[assignment.studentId] = {
+        companyId: assignment.companyId,
+        slot: assignment.slot,
+      };
+    });
+
+    setAssignments(eventAssignments);
+    setMatchingInfo(
+      `Termin "${event.title}" wird bearbeitet. Änderungen werden erst durch Speichern übernommen.`
+    );
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEventEdit() {
+    setEditingEventId(null);
+    setAssignments(autoAssignments);
+
+    setTitle("");
+    setDate("");
+
+    const matchedCount = Object.keys(autoAssignments).length;
+    const unmatchedCount = filteredStudents.length - matchedCount;
+
+    setMatchingInfo(
+      filteredStudents.length > 0
+        ? `${matchedCount} Studierende automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
+        : null
+    );
+  }
+
+  function buildAssignmentsFromDrafts(): JobDatingEvent["assignments"] {
+    return filteredStudents
       .map((student) => {
         const draft = assignments[student.id];
         if (!draft?.companyId || !draft?.slot) return null;
@@ -383,10 +434,95 @@ export default function EventsPage() {
           slot: draft.slot,
         };
       })
-      .filter(Boolean);
+      .filter((assignment): assignment is JobDatingEvent["assignments"][number] => assignment !== null);
+  }
+
+  function validateAssignments(eventAssignments: JobDatingEvent["assignments"]): string | null {
+    const studentSlotMap = new Map<string, string>();
+    const companySlotMap = new Map<string, string>();
+
+    const prefMap = new Map<string, PreferenceType>();
+    preferences.forEach((pref) => {
+      prefMap.set(preferenceKey(pref.studentId, pref.companyId), pref.preferenceType);
+    });
+
+    for (const assignment of eventAssignments) {
+      const studentSlotKey = `${assignment.studentId}::${assignment.slot}`;
+      const companySlotKey = `${assignment.companyId}::${assignment.slot}`;
+
+      if (studentSlotMap.has(studentSlotKey)) {
+        return `Ungültige Zuordnung: ${assignment.studentName} ist um ${assignment.slot} bereits einem anderen Unternehmen zugeordnet.`;
+      }
+
+      if (companySlotMap.has(companySlotKey)) {
+        return `Ungültige Zuordnung: ${assignment.companyName} ist um ${assignment.slot} bereits einem anderen Studierenden zugeordnet.`;
+      }
+
+      const preference =
+        prefMap.get(preferenceKey(assignment.studentId, assignment.companyId)) ?? "none";
+
+      if (preference === "dislike") {
+        return `Ungültige Zuordnung: ${assignment.studentName} hat ${assignment.companyName} abgelehnt.`;
+      }
+
+      studentSlotMap.set(studentSlotKey, assignment.companyName);
+      companySlotMap.set(companySlotKey, assignment.studentName);
+    }
+
+    return null;
+  }
+
+  function saveEvent() {
+    if (!title.trim()) {
+      setError("Bitte einen Titel für den Termin eingeben.");
+      return;
+    }
+
+    if (!date) {
+      setError("Bitte ein Datum auswählen.");
+      return;
+    }
+
+    if (!studyProgram) {
+      setError("Bitte ein akademisches Programm auswählen.");
+      return;
+    }
+
+    if (activeSlots.length === 0) {
+      setError("Bitte gültige Zeitslots definieren.");
+      return;
+    }
+
+    const builtAssignments = buildAssignmentsFromDrafts();
 
     if (builtAssignments.length === 0) {
       setError("Es konnte kein gültiges Matching erzeugt werden.");
+      return;
+    }
+
+    const validationError = validateAssignments(builtAssignments);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    if (editingEvent) {
+      updateEvent({
+        ...editingEvent,
+        title: title.trim(),
+        date,
+        studyProgram,
+        semester,
+        slotDurationMinutes,
+        slots: activeSlots,
+        assignments: builtAssignments,
+      });
+
+      setError(null);
+      setMatchingInfo(`Termin "${title.trim()}" wurde aktualisiert.`);
+      setEditingEventId(null);
+      setTitle("");
+      setDate("");
       return;
     }
 
@@ -397,8 +533,8 @@ export default function EventsPage() {
       studyProgram,
       semester,
       slotDurationMinutes,
-      slots,
-      assignments: builtAssignments as JobDatingEvent["assignments"],
+      slots: activeSlots,
+      assignments: builtAssignments,
       createdAt: new Date().toISOString(),
     };
 
@@ -466,7 +602,12 @@ export default function EventsPage() {
 
           <label className="field formFull">
             <span>Startzeit</span>
-            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <input
+              type="time"
+              value={startTime}
+              disabled={isEditingEvent}
+              onChange={(e) => setStartTime(e.target.value)}
+            />
           </label>
 
           <label className="field">
@@ -475,6 +616,7 @@ export default function EventsPage() {
               type="number"
               min={1}
               value={slotCount}
+              disabled={isEditingEvent}
               onChange={(e) => setSlotCount(Number(e.target.value))}
             />
           </label>
@@ -486,6 +628,7 @@ export default function EventsPage() {
               min={5}
               step={5}
               value={slotDurationMinutes}
+              disabled={isEditingEvent}
               onChange={(e) => setSlotDurationMinutes(Number(e.target.value))}
             />
           </label>
@@ -493,35 +636,43 @@ export default function EventsPage() {
           <label className="field">
             <span>Pause nach Anzahl Slots</span>
             <input
-                type="number"
-                min={0}
-                value={pauseAfterSlots}
-                onChange={(e) => setPauseAfterSlots(Number(e.target.value))}
+              type="number"
+              min={0}
+              value={pauseAfterSlots}
+              disabled={isEditingEvent}
+              onChange={(e) => setPauseAfterSlots(Number(e.target.value))}
             />
           </label>
 
           <label className="field">
             <span>Pausendauer (Minuten)</span>
             <input
-                type="number"
-                min={0}
-                step={5}
-                value={pauseMinutes}
-                onChange={(e) => setPauseMinutes(Number(e.target.value))}
+              type="number"
+              min={0}
+              step={5}
+              value={pauseMinutes}
+              disabled={isEditingEvent}
+              onChange={(e) => setPauseMinutes(Number(e.target.value))}
             />
           </label>
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <strong>Generierte Slots:</strong>{" "}
-          {slots.length > 0
-              ? slots
-                  .map((slot, index) => {
-                    const showPause = pauseAfterSlots > 0 && pauseMinutes > 0 && index > 0 && index % pauseAfterSlots === 0;
-                    return `${showPause ? `Pause ${pauseMinutes} Min., ` : ""}${slot}`;
-                  })
-                  .join(", ")
-              : "Keine"}
+          <strong>{isEditingEvent ? "Gespeicherte Slots:" : "Generierte Slots:"}</strong>{" "}
+          {activeSlots.length > 0
+            ? activeSlots
+                .map((slot, index) => {
+                  const showPause =
+                    !isEditingEvent &&
+                    pauseAfterSlots > 0 &&
+                    pauseMinutes > 0 &&
+                    index > 0 &&
+                    index % pauseAfterSlots === 0;
+
+                  return `${showPause ? `Pause ${pauseMinutes} Min., ` : ""}${slot}`;
+                })
+                .join(", ")
+            : "Keine"}
         </div>
 
         {matchingInfo && (
@@ -533,20 +684,23 @@ export default function EventsPage() {
         {error && <p className="error">{error}</p>}
 
         <div className="formFooter">
+          {isEditingEvent && (
+            <button type="button" className="btn btnGhost" onClick={cancelEventEdit}>
+              Bearbeitung abbrechen
+            </button>
+          )}
+
           <button type="button" className="btn btnPrimary" onClick={saveEvent}>
-            Termin speichern
+            {isEditingEvent ? "Änderungen speichern" : "Termin speichern"}
           </button>
         </div>
       </div>
 
-      <h3 style={{ margin: "18px 0 6px" }}>
-        Zuweisungen prüfen und anpassen
-      </h3>
+      <h3 style={{ margin: "18px 0 6px" }}>Zuweisungen prüfen und anpassen</h3>
 
       <p className="muted" style={{ margin: "0 0 10px" }}>
-        Änderungen an Unternehmen und Zeitslots werden erst durch „Termin speichern“ übernommen.
+        Änderungen an Unternehmen und Zeitslots werden erst durch Speichern übernommen.
       </p>
-
 
       <div className="tableWrap" style={{ marginBottom: 16 }}>
         <table className="table">
@@ -597,7 +751,7 @@ export default function EventsPage() {
                       }
                     >
                       <option value="">Keine Zuordnung</option>
-                      {slots.map((slot) => (
+                      {activeSlots.map((slot) => (
                         <option key={slot} value={slot}>
                           {slot}
                         </option>
@@ -611,18 +765,13 @@ export default function EventsPage() {
         </table>
       </div>
 
-
-      <div
-          className="pageHeader"
-          style={{ marginTop: 18, marginBottom: 12 }}
-      >
+      <div className="pageHeader" style={{ marginTop: 18, marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>Gespeicherte Termine</h3>
 
         <button type="button" className="btn" onClick={exportEventsToExcel}>
           Excel exportieren
         </button>
       </div>
-
 
       <div className="tableWrap">
         <table className="table">
@@ -643,19 +792,47 @@ export default function EventsPage() {
               </tr>
             ) : (
               events.map((event) => (
-                <tr key={event.id}>
+                <tr
+                  key={event.id}
+                  onClick={() => openEventForEdit(event)}
+                  style={{
+                    cursor: "pointer",
+                    background:
+                      editingEventId === event.id ? "rgba(46, 125, 50, 0.08)" : undefined,
+                  }}
+                >
                   <td>{event.title}</td>
                   <td>{event.date}</td>
                   <td>{event.studyProgram}</td>
                   <td>{event.semester === 0 ? "Alle Semester" : event.semester}</td>
                   <td>{event.assignments.length}</td>
                   <td>
-                    <button
-                      className="btn btnDanger"
-                      onClick={() => removeEvent(event.id)}
-                    >
-                      Löschen
-                    </button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="btn btnGhost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEventForEdit(event);
+                        }}
+                      >
+                        Bearbeiten
+                      </button>
+
+                      <button
+                        className="btn btnDanger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          if (editingEventId === event.id) {
+                            cancelEventEdit();
+                          }
+
+                          removeEvent(event.id);
+                        }}
+                      >
+                        Löschen
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
