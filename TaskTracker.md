@@ -37,8 +37,17 @@
 | Muster GmbH | office@muster.at |
 
 
+## Offene Punkte bis 9.6:
+
+- [] Termine: Bei manueller Zuweisung soll es visuelles Feedback geben ob der Student das Unternehmen geliked/disliked hat (z.B. Hintergrund Farbe)
+- [] Info Button zur Anzeige von Vorschau wie das Excel aussehen soll 
+- [] Excel Import für Studenten & Unternehmen anlegen ohne Invite ?
+
 ### Stakeholder Partnerunternehmen (Ivana)
 - [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
+- [] Admin soll Unternehmensprofile gleich wie das Unternehmen bearbeiten können (Fotos hochladen)
+- [] Wording: "Status: Aktiv/Inaktiv" ändern (z.B. Teilnahme am Jobdating)
+
 
 ### Tests 
 - [] Companies List (Admin)
