@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import React, { useEffect, useMemo, useState } from "react";
 import { getStudents, Student } from "@/lib/studentsApi";
 import { getCompanies, Company } from "@/lib/companiesApi";
+import { getAllMeetings, type BackendMeeting } from "@/lib/meetingsApi";
 import { JobDatingEvent, useEventsStore } from "@/lib/eventsStore";
 import {
   getAllPreferences,
@@ -192,6 +193,9 @@ export default function EventsPage() {
   const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
+  const [backendMeetings, setBackendMeetings] = useState<BackendMeeting[]>([]);
+  const [backendMeetingsError, setBackendMeetingsError] = useState<string | null>(null);
+
   const editingEvent = useMemo(
     () => events.find((event) => event.id === editingEventId) ?? null,
     [events, editingEventId]
@@ -304,6 +308,24 @@ export default function EventsPage() {
         setStudents(studentsData);
         setCompanies(companiesData);
         setPreferences(preferencesData);
+
+        try {
+          const meetingsData = await getAllMeetings();
+
+          setBackendMeetings(meetingsData);
+          setBackendMeetingsError(null);
+
+          console.log("Backend meetings from /api/allMeetings:", meetingsData);
+          console.table(meetingsData);
+        } catch (meetingError) {
+          const message =
+            meetingError instanceof Error
+              ? meetingError.message
+              : "Backend-Meetings konnten nicht geladen werden.";
+
+          setBackendMeetingsError(message);
+          console.error("Backend meetings fetch failed:", meetingError);
+        }
 
         const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
         setStudyProgram(firstProgram);
