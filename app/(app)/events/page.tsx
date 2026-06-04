@@ -235,62 +235,63 @@ export default function EventsPage() {
     return isCompanySlotTakenInAssignments(assignments, currentStudentId, companyId, slot);
   }
 
-  function exportEventsToExcel() {
-    const rows = events.flatMap((event) => {
-      const sortedAssignments = [...event.assignments].sort((a, b) =>
-        a.slot.localeCompare(b.slot)
-      );
 
-      const result: Record<string, string | number>[] = [];
-      let previousSlot: string | null = null;
+  function safeFileName(value: string) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+  }
 
-      for (const assignment of sortedAssignments) {
-        if (previousSlot && assignment.slot !== previousSlot) {
-          const gap = timeToMinutes(assignment.slot) - timeToMinutes(previousSlot);
+  function exportEvent(event: JobDatingEvent) {
+    const sortedAssignments = [...event.assignments].sort((a, b) => a.slot.localeCompare(b.slot));
 
-          if (gap > event.slotDurationMinutes) {
-            const pauseStart = minutesToTime(
-              timeToMinutes(previousSlot) + event.slotDurationMinutes
-            );
+    const rows: Record<string, string | number>[] = [];
+    let previousSlot: string | null = null;
 
-            result.push({
-              Titel: "Pause",
-              Datum: "Pause",
-              Programm: "Pause",
-              Semester: "Pause",
-              Uhrzeit: `${pauseStart} - ${assignment.slot}`,
-              Unternehmen: "Pause",
-              Studierende: "Pause",
-            });
-          }
+    for (const assignment of sortedAssignments) {
+      if (previousSlot && assignment.slot !== previousSlot) {
+        const gap = timeToMinutes(assignment.slot) - timeToMinutes(previousSlot);
+
+        if (gap > event.slotDurationMinutes) {
+          const pauseStart = minutesToTime(timeToMinutes(previousSlot) + event.slotDurationMinutes);
+
+          rows.push({
+            Titel: "Pause",
+            Datum: "Pause",
+            Programm: "Pause",
+            Semester: "Pause",
+            Uhrzeit: `${pauseStart} - ${assignment.slot}`,
+            Unternehmen: "Pause",
+            Studierende: "Pause",
+          });
         }
-
-        result.push({
-          Titel: event.title,
-          Datum: event.date,
-          Programm: event.studyProgram,
-          Semester: event.semester === 0 ? "Alle Semester" : event.semester,
-          Uhrzeit: assignment.slot,
-          Unternehmen: assignment.companyName,
-          Studierende: assignment.studentName,
-        });
-
-        previousSlot = assignment.slot;
       }
 
-      return result;
-    });
+      rows.push({
+        Titel: event.title,
+        Datum: event.date,
+        Programm: event.studyProgram,
+        Semester: event.semester === 0 ? "Alle Semester" : event.semester,
+        Uhrzeit: assignment.slot,
+        Unternehmen: assignment.companyName,
+        Studierende: assignment.studentName,
+      });
+
+      previousSlot = assignment.slot;
+    }
 
     if (rows.length === 0) {
-      setError("Es gibt noch keine gespeicherten Termine für den Export.");
+      setError("Für diesen Termin gibt es keine Zuweisungen für den Export.");
       return;
     }
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
-
     XLSX.utils.book_append_sheet(workbook, worksheet, "Termine");
-    XLSX.writeFile(workbook, "job-dating-termine.xlsx");
+    const fileName = `${safeFileName(event.title)}_${event.date}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
   }
 
   useEffect(() => {
@@ -881,10 +882,6 @@ export default function EventsPage() {
 
       <div className="pageHeader" style={{ marginTop: 18, marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>Gespeicherte Termine</h3>
-
-        <button type="button" className="btn" onClick={exportEventsToExcel}>
-          Excel exportieren
-        </button>
       </div>
 
       <div className="tableWrap">
@@ -945,6 +942,16 @@ export default function EventsPage() {
                         }}
                       >
                         Löschen
+                      </button>
+
+                      <button
+                          className="btn btnGhost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            exportEvent(event);
+                          }}
+                      >
+                        Excel exportieren
                       </button>
                     </div>
                   </td>
