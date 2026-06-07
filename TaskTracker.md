@@ -40,7 +40,7 @@
 ## Offene Punkte bis 9.6:
 
 - [] Termine: Bei manueller Zuweisung soll es visuelles Feedback geben ob der Student das Unternehmen geliked/disliked hat (z.B. Hintergrund Farbe)
-- [] Info Button zur Anzeige von Vorschau wie das Excel aussehen soll 
+- [X] Info Button zur Anzeige von Vorschau wie das Excel aussehen soll 
 - [] Excel Import für Studenten & Unternehmen anlegen ohne Invite ?
 
 ### Stakeholder Partnerunternehmen (Ivana)

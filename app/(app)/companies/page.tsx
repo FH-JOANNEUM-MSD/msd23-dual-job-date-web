@@ -33,6 +33,7 @@ export default function CompaniesPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const resendDialogRef = useRef<HTMLDialogElement | null>(null);
+  const templatePreviewDialogRef = useRef<HTMLDialogElement | null>(null);
   const [resendEmail, setResendEmail] = useState("");
 
   React.useEffect(() => setMounted(true), []);
@@ -303,6 +304,18 @@ export default function CompaniesPage() {
                 onChange={(e) => void onImportExcel(e)}
             />
 
+            
+
+            <button
+                type="button"
+                className="btn btnGhost"
+                aria-label="Template Vorschau"
+                title="Template Vorschau"
+                onClick={() => templatePreviewDialogRef.current?.showModal()}
+            >
+              <img src="/file-preview.jpg" alt="" width={20} height={20} />
+            </button>
+
             <button className="btn btnGhost" onClick={() => fileInputRef.current?.click()}>
               Excel importieren
             </button>
@@ -553,6 +566,26 @@ export default function CompaniesPage() {
               </button>
             </div>
           </form>
+        </dialog>
+
+        <dialog ref={templatePreviewDialogRef} className="dialog">
+          <div className="dialogInner">
+            <div className="dialogHeader">
+              <h3 style={{ margin: 0 }}>Template Vorschau</h3>
+            </div>
+
+            <img
+                src="/unternehmen_vorschau.png"
+                alt="Excel Import Template"
+                style={{ width: "100%", height: "auto" }}
+            />
+
+            <div className="dialogActions">
+              <button className="btn" onClick={() => templatePreviewDialogRef.current?.close()}>
+                Schließen
+              </button>
+            </div>
+          </div>
         </dialog>
       </>
   );
