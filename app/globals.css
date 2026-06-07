@@ -415,6 +415,24 @@ body {
   border-color: var(--green);
 }
 
+.tableSelect--like {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.tableSelect--dislike {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.tableSelect--none {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
 @media (max-width: 720px) {
   .formGrid { grid-template-columns: 1fr; }
 }

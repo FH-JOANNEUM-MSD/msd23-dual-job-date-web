@@ -7,7 +7,9 @@ import { getCompanies, Company } from "@/lib/companiesApi";
 import { getAllMeetings, type BackendMeeting } from "@/lib/meetingsApi";
 import { JobDatingEvent, useEventsStore } from "@/lib/eventsStore";
 import {
+  buildPreferenceMap,
   getAllPreferences,
+  preferenceKey,
   type Preference,
   type PreferenceType,
 } from "@/lib/preferencesApi";
@@ -46,10 +48,6 @@ function generateSlots(
     const mm = String(total % 60).padStart(2, "0");
     return `${hh}:${mm}`;
   });
-}
-
-function preferenceKey(studentId: string, companyId: string) {
-  return `${studentId}::${companyId}`;
 }
 
 function preferenceScore(type: PreferenceType): number {
@@ -385,6 +383,8 @@ export default function EventsPage() {
     }
   }, [studyProgram, semestersForProgram, semester]);
 
+  const prefMap = useMemo(() => buildPreferenceMap(preferences), [preferences]);
+
   const autoAssignments = useMemo(() => {
     return generateAutomaticAssignments(filteredStudents, companies, activeSlots, preferences);
   }, [filteredStudents, companies, activeSlots, preferences]);
@@ -536,11 +536,6 @@ export default function EventsPage() {
   function validateAssignments(eventAssignments: JobDatingEvent["assignments"]): string | null {
     const studentSlotMap = new Map<string, string>();
     const companySlotMap = new Map<string, string>();
-
-    const prefMap = new Map<string, PreferenceType>();
-    preferences.forEach((pref) => {
-      prefMap.set(preferenceKey(pref.studentId, pref.companyId), pref.preferenceType);
-    });
 
     for (const assignment of eventAssignments) {
       const studentSlotKey = `${assignment.studentId}::${assignment.slot}`;
@@ -798,6 +793,12 @@ export default function EventsPage() {
         Änderungen an Unternehmen und Zeitslots werden erst durch Speichern übernommen.
       </p>
 
+      <div className="prefLegend" style={{ marginBottom: 12 }}>
+        <span className="prefCell prefCell--like">↑ Like</span>
+        <span className="prefCell prefCell--dislike">↓ Dislike</span>
+        <span className="prefCell prefCell--none">— Offen</span>
+      </div>
+
       <div className="tableWrap" style={{ marginBottom: 16 }}>
         <table className="table">
           <thead>
@@ -821,6 +822,9 @@ export default function EventsPage() {
               assignmentRows.map((student) => {
                 const selectedCompanyId = assignments[student.id]?.companyId ?? "";
                 const selectedSlot = assignments[student.id]?.slot ?? "";
+                const selectedPref = selectedCompanyId
+                  ? (prefMap.get(preferenceKey(student.id, selectedCompanyId)) ?? "none")
+                  : null;
 
                 return (
                   <tr key={student.id}>
@@ -828,8 +832,17 @@ export default function EventsPage() {
                     <td>{student.studyProgram}</td>
                     <td>
                       <select
-                        className="tableSelect"
+                        className={`tableSelect${selectedPref ? ` tableSelect--${selectedPref}` : ""}`}
                         value={selectedCompanyId}
+                        title={
+                          selectedPref === "like"
+                            ? "Studierende/r hat dieses Unternehmen geliked"
+                            : selectedPref === "dislike"
+                              ? "Studierende/r hat dieses Unternehmen disliked"
+                              : selectedPref === "none"
+                                ? "Keine Präferenz angegeben"
+                                : undefined
+                        }
                         onChange={(e) =>
                           updateAssignment(student, { companyId: e.target.value })
                         }
@@ -839,9 +852,14 @@ export default function EventsPage() {
                           const isTaken = selectedSlot
                             ? isCompanySlotTaken(student.id, company.id, selectedSlot)
                             : false;
+                          const pref =
+                            prefMap.get(preferenceKey(student.id, company.id)) ?? "none";
+                          const prefPrefix =
+                            pref === "like" ? "↑ " : pref === "dislike" ? "↓ " : "— ";
 
                           return (
                             <option key={company.id} value={company.id} disabled={isTaken}>
+                              {prefPrefix}
                               {company.name}
                               {isTaken ? " (belegt)" : ""}
                             </option>
