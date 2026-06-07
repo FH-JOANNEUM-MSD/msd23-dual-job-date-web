@@ -109,7 +109,7 @@ To deploy directly to production, run:
 vercel --prod
 ```
 
-Before deploying, it is recommended to check that the project builds successfully:
+Before deploying, it's recommended to check that the project builds successfully:
 
 ```bash
 npm run build
