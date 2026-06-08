@@ -118,3 +118,16 @@ Zur Kommunikation mit dem Backend wurde die Authentifizierung über Supabase-Tok
 Das habt ihr mehrfach angepasst.
 
 Im Zuge der Weiterentwicklung wurden verschiedene Oberflächenbereiche hinsichtlich Benutzerfreundlichkeit und Übersichtlichkeit überarbeitet. Dazu gehören die Anpassung von Bezeichnungen, die Verbesserung der Tabellenansichten, die Hervorhebung wichtiger Statusinformationen sowie die Optimierung von Formularen und Dialogfenstern.
+
+
+## Erweiterung bis 9.6:
+
+Bei der manuellen Zuweisung von Studierenden zu Unternehmen wird nun visuelles Feedback angezeigt, ob ein Unternehmen von der jeweiligen studierenden Person positiv oder negativ bewertet wurde. Dadurch können Administratoren bei manuellen Anpassungen schneller erkennen, ob eine Zuweisung zur Präferenz passt.
+
+Zusätzlich wurde ein Info-Button für Excel-Importe ergänzt. Über diesen Button kann eine Vorschau des erwarteten Excel-Aufbaus angezeigt werden. Dadurch wird ersichtlich, welche Spalten und Inhalte die Importdateien enthalten müssen, bevor eine Datei hochgeladen wird.
+
+Für Partnerunternehmen wurde die Ansicht „Zuteilung Job Dating“ erweitert. Die Unternehmen können ihre zugewiesenen Studierenden mit Uhrzeit, Eventname und Datum einsehen. Die Anzeige wird im Frontend so gesteuert, dass die Zuteilungen erst am Veranstaltungstag sichtbar sind. Vorher wird lediglich ein Hinweis angezeigt, dass die Zuteilungen erst am Veranstaltungstag freigeschaltet werden.
+
+Außerdem wurde die Bearbeitung von Unternehmensprofilen für Administratoren erweitert. Administratoren können Unternehmensprofile nun ähnlich wie die Unternehmen selbst bearbeiten und dabei auch Logos sowie Unternehmensbilder hochladen bzw. verwalten.
+
+Zusätzlich wurde die bisherige Status-Bezeichnung „Aktiv/Inaktiv“ sprachlich angepasst. Statt einer technischen Statusanzeige wird nun verständlicher angezeigt, ob ein Unternehmen am Jobdating teilnimmt oder nicht.

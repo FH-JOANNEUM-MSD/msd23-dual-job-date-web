@@ -121,3 +121,9 @@ export async function deleteMeeting(meetingId: string) {
     }
   );
 }
+
+export async function getMeetingsForCompany(companyId: string): Promise<BackendMeeting[]> {
+  const data = await apiFetch<BackendMeetingDto[]>(`/api/backend/companies/${companyId}/meetings`);
+  if (!Array.isArray(data)) return [];
+  return data.map(mapBackendMeeting);
+}

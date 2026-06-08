@@ -36,9 +36,9 @@ export async function getAllEvents(): Promise<BackendEvent[]> {
 }
 
 export async function getActiveEvents(): Promise<BackendEvent[]> {
-  const data = await apiFetch<BackendEventDto[]>("/api/backend/events/active");
-  if (!Array.isArray(data)) return [];
-  return data.map(mapBackendEvent);
+  const data = await apiFetch<BackendEventDto | BackendEventDto[]>("/api/backend/active");
+  const list = Array.isArray(data) ? data : data ? [data] : [];
+  return list.map(mapBackendEvent);
 }
 
 export async function createEvent(input: {

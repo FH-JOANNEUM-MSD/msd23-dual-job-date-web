@@ -15,7 +15,7 @@
 
 ### Vorbereitung Dual Job Dating Event 
 - [X] Als Administrator sehe ich welche Studierenden welches Unternehmen geliked/disliked hat 
-- [] Als Administrator kann ich das „Matching“ zwischen Studierenden und Partnerunternehmen für ein Job Dating Event anstoßen. --> noch ausständig, dass bei getStudents E-Mail mitgesandt wird  
+- [X] Als Administrator kann ich das „Matching“ zwischen Studierenden und Partnerunternehmen für ein Job Dating Event anstoßen. --> resend invite
 - [X] Als Administrator kann ich die Zuteilung zwischen Studierenden und Partnerunternehmen sehen (Z.B: Zeile: Partnerunternehmen, Spalte: Studierende; evtl. Darstellung umschaltbar)
 - [X] Als Administrator kann ich die Zuteilung von Studierenden zu einem ausgewählten Partnerunternehmen sehen 
 - [X] Als Administrator kann ich die Zuteilung von Partnerunternehmen zu einer ausgewählten Studierenden sehen 
@@ -42,9 +42,7 @@
 - [X] Termine: Bei manueller Zuweisung soll es visuelles Feedback geben ob der Student das Unternehmen geliked/disliked hat (z.B. Hintergrund Farbe)
 - [X] Info Button zur Anzeige von Vorschau wie das Excel aussehen soll 
 - [] Excel Import für Studenten & Unternehmen anlegen ohne Invite ?
-
-### Stakeholder Partnerunternehmen (Ivana)
-- [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
+- [X] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
 - [X] Admin soll Unternehmensprofile gleich wie das Unternehmen bearbeiten können (Fotos hochladen)
 - [X] Wording: "Status: Aktiv/Inaktiv" ändern (z.B. Teilnahme am Jobdating)
 

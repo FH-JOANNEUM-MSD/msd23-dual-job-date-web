@@ -3,6 +3,8 @@
 import React, {useEffect, useState} from "react";
 import {getCurrentUser} from "@/lib/authApi";
 import {getCompanyById, updateCompany, uploadCompanyLogo, uploadCompanyImage, type Company, type CompanyStatus} from "@/lib/companiesApi";
+import { getMeetingsForCompany, type BackendMeeting } from "@/lib/meetingsApi";
+import {BackendEvent, getActiveEvents} from "@/lib/eventsApi";
 
 function normalizeWebsite(input: string) {
     const value = input.trim();
@@ -37,6 +39,12 @@ export default function MyCompanyProfilePage() {
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
 
+    const [meetings, setMeetings] = useState<BackendMeeting[]>([]);
+    const [meetingsError, setMeetingsError] = useState<string | null>(null);
+
+    const [activeEvent, setActiveEvent] = useState<BackendEvent | null>(null);
+    const [meetingsInfo, setMeetingsInfo] = useState<string | null>(null);
+
     function fillForm(c: Company) {
         setName(c.name ?? "");
         setShortDescription(c.shortDescription ?? "");
@@ -49,6 +57,7 @@ export default function MyCompanyProfilePage() {
         setIsLoading(true);
         setError(null);
         setInfo(null);
+        setMeetingsInfo(null);
 
         try {
             const me = await getCurrentUser();
@@ -65,6 +74,40 @@ export default function MyCompanyProfilePage() {
             setCompany(ownCompany);
             fillForm(ownCompany);
             setMode("view");
+
+            try {
+                const companyMeetings = await getMeetingsForCompany(String(companyId));
+                const activeEvents = await getActiveEvents();
+
+                const today = new Date().toISOString().split("T")[0];
+
+                const currentEvent = activeEvents.find(
+                    (event) => event.eventDate === today
+                );
+
+               // const currentEvent = activeEvents[0];
+
+                if (!currentEvent) {
+                    setActiveEvent(null);
+                    setMeetings([]);
+                    setMeetingsInfo("Die Zuteilungen werden erst am Veranstaltungstag freigeschaltet.");
+                    return;
+                }
+
+                setActiveEvent(currentEvent);
+
+                const eventMeetings = companyMeetings.filter(
+                    (meeting) => meeting.eventId === currentEvent.id
+                );
+
+                setMeetings(eventMeetings);
+
+            } catch (err) {
+                setMeetingsError(
+                    err instanceof Error ? err.message : "Termine konnten nicht geladen werden."
+                );
+            }
+
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unternehmensprofil konnte nicht geladen werden.");
         } finally {
@@ -168,6 +211,10 @@ export default function MyCompanyProfilePage() {
             setImageFile(null);
             setMode("view");
             setInfo("Unternehmensprofil wurde erfolgreich gespeichert.");
+
+            const companyMeetings = await getMeetingsForCompany(company.id);
+            setMeetings(companyMeetings);
+
         } catch (err) {
             setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
         }
@@ -190,6 +237,7 @@ export default function MyCompanyProfilePage() {
 
     if (mode === "view") {
         return (
+            <>
             <div className="formCard profileView">
                 <div className="formHeader">
                     <div>
@@ -390,6 +438,53 @@ export default function MyCompanyProfilePage() {
                     </div>
                 </div>
             </div>
+
+                <div className="formCard" style={{ marginTop: 24 }}>
+                    <div className="formHeader">
+                        <h2 style={{ margin: 0 }}>Zuteilung Job Dating</h2>
+                    </div>
+
+                    {meetingsError && <p className="error">{meetingsError}</p>}
+
+                    {meetingsInfo ? (
+                        <p className="muted">{meetingsInfo}</p>
+                    ) : meetings.length === 0 ? (
+                        <p>Noch keine Zuteilungen vorhanden.</p>
+                    ) : (
+                        <div className="tableWrap">
+                            <table className="table">
+                                <thead>
+                                <tr>
+                                    <th>Event</th>
+                                    <th>Datum</th>
+                                    <th>Uhrzeit</th>
+                                    <th>Studierende/r</th>
+                                </tr>
+                                </thead>
+
+                                <tbody>
+                                {[...meetings]
+                                    .sort((a, b) =>
+                                        a.slotStartTime.localeCompare(b.slotStartTime)
+                                    )
+                                    .map((meeting) => (
+                                        <tr key={meeting.id}>
+                                            <td>{activeEvent?.name ?? "-"}</td>
+                                            <td>{activeEvent?.eventDate ?? "-"}</td>
+                                            <td>
+                                                {meeting.slotStartTime.slice(0, 5)}
+                                                {" - "}
+                                                {meeting.slotEndTime.slice(0, 5)}
+                                            </td>
+                                            <td>{meeting.studentName}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </>
         );
     }
 
