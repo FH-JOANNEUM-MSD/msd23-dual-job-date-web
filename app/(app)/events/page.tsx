@@ -4,8 +4,27 @@ import * as XLSX from "xlsx";
 import React, { useEffect, useMemo, useState } from "react";
 import { getStudents, Student } from "@/lib/studentsApi";
 import { getCompanies, Company } from "@/lib/companiesApi";
-import { getAllMeetings, type BackendMeeting } from "@/lib/meetingsApi";
-import { JobDatingEvent, useEventsStore } from "@/lib/eventsStore";
+import {
+  createMeeting,
+  deleteMeeting,
+  getAllMeetings,
+  updateMeeting,
+  type BackendMeeting,
+} from "@/lib/meetingsApi";
+
+import {
+  createEvent as createBackendEvent,
+  deleteEvent as deleteBackendEvent,
+  getAllEvents,
+  updateEvent as updateBackendEvent,
+  type BackendEvent,
+} from "@/lib/eventsApi";
+
+import {
+  createSlot,
+  getAllSlots,
+  type BackendSlot,
+} from "@/lib/slotsApi";
 import {
   buildPreferenceMap,
   getAllPreferences,
@@ -24,6 +43,33 @@ type RankedCandidate = {
   pref: Exclude<PreferenceType, "dislike">;
   score: number;
   currentLoad: number;
+  slot: string;
+};
+
+type BackendEventDisplay = {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+  isActive: boolean;
+  slots: string[];
+  assignments: {
+    meetingId: string;
+    slotId: string;
+    studentId: string;
+    studentName: string;
+    companyId: string;
+    companyName: string;
+    slot: string;
+  }[];
+};
+
+type EventAssignment = {
+  studentId: string;
+  studentName: string;
+  companyId: string;
+  companyName: string;
   slot: string;
 };
 
@@ -168,9 +214,71 @@ function generateAutomaticAssignments(
   return result;
 }
 
-export default function EventsPage() {
-  const { events, addEvent, updateEvent, removeEvent } = useEventsStore();
+function buildBackendEventDisplays(
+  backendEvents: BackendEvent[],
+  backendMeetings: BackendMeeting[],
+  backendSlots: BackendSlot[],
+  companies: Company[]
+): BackendEventDisplay[] {
+  const slotById = new Map(backendSlots.map((slot) => [slot.id, slot]));
+  const companyById = new Map(companies.map((company) => [company.id, company]));
 
+  return backendEvents
+    .map((event) => {
+      const eventMeetings = backendMeetings.filter(
+        (meeting) => meeting.eventId === event.id
+      );
+
+      const assignments = eventMeetings
+        .map((meeting) => {
+          const slot = slotById.get(meeting.slotId);
+          const company = companyById.get(meeting.companyId);
+
+          const slotStart =
+            slot?.startTime?.slice(0, 5) ||
+            meeting.slotStartTime?.slice(0, 5) ||
+            "";
+
+          return {
+            meetingId: meeting.id,
+            slotId: meeting.slotId,
+            studentId: meeting.studentId,
+            studentName: meeting.studentName,
+            companyId: meeting.companyId,
+            companyName: company?.name || `Unternehmen ${meeting.companyId}`,
+            slot: slotStart,
+          };
+        })
+        .sort((a, b) => {
+          if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
+          if (a.companyName !== b.companyName) {
+            return a.companyName.localeCompare(b.companyName);
+          }
+          return a.studentName.localeCompare(b.studentName);
+        });
+
+      const slots = [
+        ...new Set(assignments.map((assignment) => assignment.slot).filter(Boolean)),
+      ].sort();
+
+      return {
+        id: event.id,
+        title: event.name,
+        date: event.eventDate,
+        location: event.location,
+        description: event.description,
+        isActive: event.isActive,
+        slots,
+        assignments,
+      };
+    })
+    .sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return a.title.localeCompare(b.title);
+    });
+}
+
+export default function EventsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [preferences, setPreferences] = useState<Preference[]>([]);
@@ -189,17 +297,14 @@ export default function EventsPage() {
 
   const [assignments, setAssignments] = useState<Record<string, AssignmentDraft>>({});
   const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const [backendMeetings, setBackendMeetings] = useState<BackendMeeting[]>([]);
   const [backendMeetingsError, setBackendMeetingsError] = useState<string | null>(null);
+  const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([]);
+  const [backendSlots, setBackendSlots] = useState<BackendSlot[]>([]);
+  const [backendScheduleError, setBackendScheduleError] = useState<string | null>(null);
 
-  const editingEvent = useMemo(
-    () => events.find((event) => event.id === editingEventId) ?? null,
-    [events, editingEventId]
-  );
-
-  const isEditingEvent = editingEvent !== null;
+  const [editingBackendEventId, setEditingBackendEventId] = useState<string | null>(null);
 
   function timeToMinutes(time: string) {
     const [h, m] = time.split(":").map(Number);
@@ -242,43 +347,15 @@ export default function EventsPage() {
         .replace(/[^a-z0-9-]/g, "");
   }
 
-  function exportEvent(event: JobDatingEvent) {
-    const sortedAssignments = [...event.assignments].sort((a, b) => a.slot.localeCompare(b.slot));
-
-    const rows: Record<string, string | number>[] = [];
-    let previousSlot: string | null = null;
-
-    for (const assignment of sortedAssignments) {
-      if (previousSlot && assignment.slot !== previousSlot) {
-        const gap = timeToMinutes(assignment.slot) - timeToMinutes(previousSlot);
-
-        if (gap > event.slotDurationMinutes) {
-          const pauseStart = minutesToTime(timeToMinutes(previousSlot) + event.slotDurationMinutes);
-
-          rows.push({
-            Titel: "Pause",
-            Datum: "Pause",
-            Programm: "Pause",
-            Semester: "Pause",
-            Uhrzeit: `${pauseStart} - ${assignment.slot}`,
-            Unternehmen: "Pause",
-            Studierende: "Pause",
-          });
-        }
-      }
-
-      rows.push({
-        Titel: event.title,
-        Datum: event.date,
-        Programm: event.studyProgram,
-        Semester: event.semester === 0 ? "Alle Semester" : event.semester,
-        Uhrzeit: assignment.slot,
-        Unternehmen: assignment.companyName,
-        Studierende: assignment.studentName,
-      });
-
-      previousSlot = assignment.slot;
-    }
+  function exportBackendEvent(event: BackendEventDisplay) {
+    const rows = event.assignments.map((assignment) => ({
+      Titel: event.title,
+      Datum: event.date,
+      Ort: event.location,
+      Uhrzeit: assignment.slot,
+      Unternehmen: assignment.companyName,
+      Studierende: assignment.studentName,
+    }));
 
     if (rows.length === 0) {
       setError("Für diesen Termin gibt es keine Zuweisungen für den Export.");
@@ -287,7 +364,9 @@ export default function EventsPage() {
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
+
     XLSX.utils.book_append_sheet(workbook, worksheet, "Termine");
+
     const fileName = `${safeFileName(event.title)}_${event.date}.xlsx`;
     XLSX.writeFile(workbook, fileName);
   }
@@ -308,37 +387,32 @@ export default function EventsPage() {
         setCompanies(companiesData);
         setPreferences(preferencesData);
 
-        try {
-          const meetingsData = await getAllMeetings();
+    try {
+      await refreshBackendSchedule();
+    } catch (backendScheduleError) {
+      const message =
+        backendScheduleError instanceof Error
+          ? backendScheduleError.message
+          : "Backend-Termine konnten nicht geladen werden.";
 
-          setBackendMeetings(meetingsData);
-          setBackendMeetingsError(null);
-
-          console.log("Backend meetings from /api/allMeetings:", meetingsData);
-          console.table(meetingsData);
-        } catch (meetingError) {
-          const message =
-            meetingError instanceof Error
-              ? meetingError.message
-              : "Backend-Meetings konnten nicht geladen werden.";
-
-          setBackendMeetingsError(message);
-          console.error("Backend meetings fetch failed:", meetingError);
-        }
-
-        const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
-        setStudyProgram(firstProgram);
-        setSemester(0);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Daten konnten nicht geladen werden.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
+      setBackendScheduleError(message);
+      setBackendMeetingsError(message);
+      console.error("Backend schedule fetch failed:", backendScheduleError);
     }
 
-    void load();
-  }, []);
+            const firstProgram = studentsData.find((s) => s.studyProgram)?.studyProgram ?? "";
+            setStudyProgram(firstProgram);
+            setSemester(0);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Daten konnten nicht geladen werden.";
+            setError(message);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        void load();
+      }, []);
 
   const studyPrograms = useMemo(() => {
     return [...new Set(students.map((s) => s.studyProgram).filter(Boolean))].sort();
@@ -363,31 +437,46 @@ export default function EventsPage() {
     });
   }, [students, studyProgram, semester]);
 
-  const generatedSlots = useMemo(() => {
-    return generateSlots(
-      startTime,
-      slotCount,
-      slotDurationMinutes,
-      pauseAfterSlots,
-      pauseMinutes
-    );
-  }, [startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes]);
+const generatedSlots = useMemo(() => {
+  return generateSlots(
+    startTime,
+    slotCount,
+    slotDurationMinutes,
+    pauseAfterSlots,
+    pauseMinutes
+  );
+}, [startTime, slotCount, slotDurationMinutes, pauseAfterSlots, pauseMinutes]);
 
-  const activeSlots = editingEvent ? editingEvent.slots : generatedSlots;
+const backendEventDisplays = useMemo(() => {
+  return buildBackendEventDisplays(
+    backendEvents,
+    backendMeetings,
+    backendSlots,
+    companies
+  );
+}, [backendEvents, backendMeetings, backendSlots, companies]);
 
-  useEffect(() => {
-    if (!studyProgram) return;
+const editingBackendEvent = useMemo(() => {
+  return backendEventDisplays.find((event) => event.id === editingBackendEventId) ?? null;
+}, [backendEventDisplays, editingBackendEventId]);
 
-    if (semester !== 0 && !semestersForProgram.includes(semester)) {
-      setSemester(0);
-    }
-  }, [studyProgram, semestersForProgram, semester]);
+const isEditingEvent = editingBackendEvent !== null;
 
-  const prefMap = useMemo(() => buildPreferenceMap(preferences), [preferences]);
+const activeSlots = editingBackendEvent ? editingBackendEvent.slots : generatedSlots;
 
-  const autoAssignments = useMemo(() => {
-    return generateAutomaticAssignments(filteredStudents, companies, activeSlots, preferences);
-  }, [filteredStudents, companies, activeSlots, preferences]);
+useEffect(() => {
+  if (!studyProgram) return;
+
+  if (semester !== 0 && !semestersForProgram.includes(semester)) {
+    setSemester(0);
+  }
+}, [studyProgram, semestersForProgram, semester]);
+
+const prefMap = useMemo(() => buildPreferenceMap(preferences), [preferences]);
+
+const autoAssignments = useMemo(() => {
+  return generateAutomaticAssignments(filteredStudents, companies, activeSlots, preferences);
+}, [filteredStudents, companies, activeSlots, preferences]);
 
   useEffect(() => {
     if (isEditingEvent) return;
@@ -466,51 +555,7 @@ export default function EventsPage() {
     });
   }
 
-  function openEventForEdit(event: JobDatingEvent) {
-    setError(null);
-    setEditingEventId(event.id);
-
-    setTitle(event.title);
-    setDate(event.date);
-    setStudyProgram(event.studyProgram);
-    setSemester(event.semester);
-    setSlotDurationMinutes(event.slotDurationMinutes);
-
-    const eventAssignments: Record<string, AssignmentDraft> = {};
-
-    event.assignments.forEach((assignment) => {
-      eventAssignments[assignment.studentId] = {
-        companyId: assignment.companyId,
-        slot: assignment.slot,
-      };
-    });
-
-    setAssignments(eventAssignments);
-    setMatchingInfo(
-      `Termin "${event.title}" wird bearbeitet. Änderungen werden erst durch Speichern übernommen.`
-    );
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function cancelEventEdit() {
-    setEditingEventId(null);
-    setAssignments(autoAssignments);
-
-    setTitle("");
-    setDate("");
-
-    const matchedCount = Object.keys(autoAssignments).length;
-    const unmatchedCount = filteredStudents.length - matchedCount;
-
-    setMatchingInfo(
-      filteredStudents.length > 0
-        ? `${matchedCount} Studierende automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
-        : null
-    );
-  }
-
-  function buildAssignmentsFromDrafts(): JobDatingEvent["assignments"] {
+  function buildAssignmentsFromDrafts(): EventAssignment[] {
     return filteredStudents
       .map((student) => {
         const draft = assignments[student.id];
@@ -527,13 +572,10 @@ export default function EventsPage() {
           slot: draft.slot,
         };
       })
-      .filter(
-        (assignment): assignment is JobDatingEvent["assignments"][number] =>
-          assignment !== null
-      );
+      .filter((assignment): assignment is EventAssignment => assignment !== null);
   }
 
-  function validateAssignments(eventAssignments: JobDatingEvent["assignments"]): string | null {
+  function validateAssignments(eventAssignments: EventAssignment[]): string | null {
     const studentSlotMap = new Map<string, string>();
     const companySlotMap = new Map<string, string>();
 
@@ -563,80 +605,305 @@ export default function EventsPage() {
     return null;
   }
 
-  function saveEvent() {
-    if (!title.trim()) {
-      setError("Bitte einen Titel für den Termin eingeben.");
-      return;
+  function toBackendTime(time: string) {
+  if (!time) return "";
+  return time.length === 5 ? `${time}:00` : time;
+}
+
+function addMinutesToTimeString(time: string, minutesToAdd: number) {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutesToAdd;
+
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+
+  return `${hh}:${mm}:00`;
+}
+
+function sameSlot(slot: BackendSlot, startTime: string, endTime: string) {
+  return (
+    slot.startTime.slice(0, 5) === startTime.slice(0, 5) &&
+    slot.endTime.slice(0, 5) === endTime.slice(0, 5)
+  );
+}
+
+async function refreshBackendSchedule() {
+  const [eventsData, meetingsData, slotsData] = await Promise.all([
+    getAllEvents(),
+    getAllMeetings(),
+    getAllSlots(),
+  ]);
+
+  setBackendEvents(eventsData);
+  setBackendMeetings(meetingsData);
+  setBackendSlots(slotsData);
+  setBackendMeetingsError(null);
+  setBackendScheduleError(null);
+
+  return {
+    eventsData,
+    meetingsData,
+    slotsData,
+  };
+}
+
+async function ensureBackendSlots(slots: string[]) {
+  const slotIdByStartTime = new Map<string, string>();
+  let knownSlots = [...backendSlots];
+
+  for (const slot of slots) {
+    const startTime = toBackendTime(slot);
+    const endTime = addMinutesToTimeString(slot, slotDurationMinutes);
+
+    const existingSlot = knownSlots.find((backendSlot) =>
+      sameSlot(backendSlot, startTime, endTime)
+    );
+
+    if (existingSlot) {
+      slotIdByStartTime.set(slot, existingSlot.id);
+      continue;
     }
 
-    if (!date) {
-      setError("Bitte ein Datum auswählen.");
-      return;
-    }
+    const createdSlot = await createSlot({
+      startTime,
+      endTime,
+    });
 
-    if (!studyProgram) {
-      setError("Bitte ein akademisches Programm auswählen.");
-      return;
-    }
-
-    if (activeSlots.length === 0) {
-      setError("Bitte gültige Zeitslots definieren.");
-      return;
-    }
-
-    const builtAssignments = buildAssignmentsFromDrafts();
-
-    if (builtAssignments.length === 0) {
-      setError("Es konnte kein gültiges Matching erzeugt werden.");
-      return;
-    }
-
-    const validationError = validateAssignments(builtAssignments);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    if (editingEvent) {
-      updateEvent({
-        ...editingEvent,
-        title: title.trim(),
-        date,
-        studyProgram,
-        semester,
-        slotDurationMinutes,
-        slots: activeSlots,
-        assignments: builtAssignments,
-      });
-
-      setError(null);
-      setMatchingInfo(`Termin "${title.trim()}" wurde aktualisiert.`);
-      setEditingEventId(null);
-      setTitle("");
-      setDate("");
-      return;
-    }
-
-    const event: JobDatingEvent = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      date,
-      studyProgram,
-      semester,
-      slotDurationMinutes,
-      slots: activeSlots,
-      assignments: builtAssignments,
-      createdAt: new Date().toISOString(),
-    };
-
-    addEvent(event);
-    setError(null);
-    setTitle("");
-    setDate("");
+    knownSlots = [...knownSlots, createdSlot];
+    slotIdByStartTime.set(slot, createdSlot.id);
   }
 
-  return (
-    <>
+  setBackendSlots(knownSlots);
+  return slotIdByStartTime;
+}
+
+function parseEventMeta(description: string) {
+  const programMatch = description.match(/Akademisches Programm:\s*([^;]+)/i);
+  const semesterMatch = description.match(/Semester:\s*([^;]+)/i);
+
+  const parsedProgram = programMatch?.[1]?.trim() ?? "";
+  const semesterText = semesterMatch?.[1]?.trim() ?? "";
+
+  const parsedSemester =
+    semesterText.toLowerCase() === "alle semester"
+      ? 0
+      : Number.isFinite(Number(semesterText))
+        ? Number(semesterText)
+        : 0;
+
+  return {
+    studyProgram: parsedProgram,
+    semester: parsedSemester,
+  };
+}
+
+function openBackendEventForEdit(event: BackendEventDisplay) {
+  setError(null);
+  setEditingBackendEventId(event.id);
+
+  setTitle(event.title);
+  setDate(event.date);
+
+  const meta = parseEventMeta(event.description);
+
+  const firstAssignedStudent = students.find((student) =>
+    event.assignments.some((assignment) => assignment.studentId === student.id)
+  );
+
+  setStudyProgram(meta.studyProgram || firstAssignedStudent?.studyProgram || studyProgram);
+  setSemester(meta.semester || 0);
+
+  const eventAssignments: Record<string, AssignmentDraft> = {};
+
+  event.assignments.forEach((assignment) => {
+    eventAssignments[assignment.studentId] = {
+      companyId: assignment.companyId,
+      slot: assignment.slot,
+    };
+  });
+
+  setAssignments(eventAssignments);
+  setMatchingInfo(
+    `Termin "${event.title}" wird bearbeitet. Änderungen werden erst durch Speichern übernommen.`
+  );
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cancelBackendEventEdit() {
+  setEditingBackendEventId(null);
+  setAssignments(autoAssignments);
+  setTitle("");
+  setDate("");
+
+  const matchedCount = Object.keys(autoAssignments).length;
+  const unmatchedCount = filteredStudents.length - matchedCount;
+
+  setMatchingInfo(
+    filteredStudents.length > 0
+      ? `${matchedCount} Studierende automatisch zugewiesen, ${unmatchedCount} ohne Zuweisung.`
+      : null
+  );
+}
+
+async function deleteBackendEventDisplay(event: BackendEventDisplay) {
+  const ok = confirm(`Termin "${event.title}" wirklich löschen?`);
+  if (!ok) return;
+
+  try {
+    setError(null);
+
+    await Promise.all(
+      event.assignments.map((assignment) => deleteMeeting(assignment.meetingId))
+    );
+
+    await deleteBackendEvent(event.id);
+    await refreshBackendSchedule();
+
+    if (editingBackendEventId === event.id) {
+      cancelBackendEventEdit();
+    }
+
+    setMatchingInfo(`Termin "${event.title}" wurde gelöscht.`);
+  } catch (deleteError) {
+    const message =
+      deleteError instanceof Error
+        ? deleteError.message
+        : "Termin konnte nicht gelöscht werden.";
+
+    setError(message);
+  }
+}
+
+async function saveEvent() {
+  if (!title.trim()) {
+    setError("Bitte einen Titel für den Termin eingeben.");
+    return;
+  }
+
+  if (!date) {
+    setError("Bitte ein Datum auswählen.");
+    return;
+  }
+
+  if (!studyProgram) {
+    setError("Bitte ein akademisches Programm auswählen.");
+    return;
+  }
+
+  if (activeSlots.length === 0) {
+    setError("Bitte gültige Zeitslots definieren.");
+    return;
+  }
+
+  const builtAssignments = buildAssignmentsFromDrafts();
+
+  if (builtAssignments.length === 0) {
+    setError("Es konnte kein gültiges Matching erzeugt werden.");
+    return;
+  }
+
+  const validationError = validateAssignments(builtAssignments);
+  if (validationError) {
+    setError(validationError);
+    return;
+  }
+
+  try {
+    setError(null);
+
+    const description = `Akademisches Programm: ${studyProgram}; Semester: ${
+      semester === 0 ? "Alle Semester" : semester
+    }`;
+
+    const targetEvent = editingBackendEvent
+      ? await updateBackendEvent(editingBackendEvent.id, {
+          name: title.trim(),
+          eventDate: date,
+          description,
+          isActive: editingBackendEvent.isActive,
+          location: editingBackendEvent.location,
+        })
+      : await createBackendEvent({
+          name: title.trim(),
+          eventDate: date,
+          location: "",
+          description,
+          isActive: true,
+        });
+
+    const slotIdByStartTime = await ensureBackendSlots(activeSlots);
+
+    const existingAssignmentsByStudentId = new Map(
+      editingBackendEvent?.assignments.map((assignment) => [
+        assignment.studentId,
+        assignment,
+      ]) ?? []
+    );
+
+    const nextAssignmentsByStudentId = new Map(
+      builtAssignments.map((assignment) => [assignment.studentId, assignment])
+    );
+
+    for (const assignment of builtAssignments) {
+      const slotId = slotIdByStartTime.get(assignment.slot);
+
+      if (!slotId) {
+        throw new Error(`Kein Backend-Slot für ${assignment.slot} gefunden.`);
+      }
+
+      const existingAssignment = existingAssignmentsByStudentId.get(assignment.studentId);
+
+      if (existingAssignment) {
+        const changed =
+          existingAssignment.companyId !== assignment.companyId ||
+          existingAssignment.slotId !== slotId;
+
+        if (changed) {
+          await updateMeeting(existingAssignment.meetingId, {
+            eventId: targetEvent.id,
+            slotId,
+            studentId: assignment.studentId,
+            companyId: assignment.companyId,
+          });
+        }
+      } else {
+        await createMeeting({
+          eventId: targetEvent.id,
+          slotId,
+          studentId: assignment.studentId,
+          companyId: assignment.companyId,
+        });
+      }
+    }
+
+    if (editingBackendEvent) {
+      const removedAssignments = editingBackendEvent.assignments.filter(
+        (assignment) => !nextAssignmentsByStudentId.has(assignment.studentId)
+      );
+
+      await Promise.all(
+        removedAssignments.map((assignment) => deleteMeeting(assignment.meetingId))
+      );
+    }
+
+    await refreshBackendSchedule();
+
+    setTitle("");
+    setDate("");
+    setEditingBackendEventId(null);
+    setMatchingInfo(`Termin "${targetEvent.name}" wurde im Backend gespeichert.`);
+  } catch (saveError) {
+    const message =
+      saveError instanceof Error
+        ? saveError.message
+        : "Termin konnte nicht im Backend gespeichert werden.";
+
+    setError(message);
+  }
+}
+
+  return (<>
       <div className="pageHeader">
         <div>
           <h2 style={{ margin: 0 }}>Termine</h2>
@@ -774,18 +1041,18 @@ export default function EventsPage() {
 
         {error && <p className="error">{error}</p>}
 
-        <div className="formFooter">
-          {isEditingEvent && (
-            <button type="button" className="btn btnGhost" onClick={cancelEventEdit}>
-              Bearbeitung abbrechen
-            </button>
-          )}
+          <div className="formFooter">
+            {isEditingEvent && (
+              <button type="button" className="btn btnGhost" onClick={cancelBackendEventEdit}>
+                Bearbeitung abbrechen
+              </button>
+            )}
 
-          <button type="button" className="btn btnPrimary" onClick={saveEvent}>
-            {isEditingEvent ? "Änderungen speichern" : "Termin speichern"}
-          </button>
+            <button type="button" className="btn btnPrimary" onClick={() => void saveEvent()}>
+              {isEditingEvent ? "Änderungen speichern" : "Termin speichern"}
+            </button>
+          </div>
         </div>
-      </div>
 
       <h3 style={{ margin: "18px 0 6px" }}>Zuweisungen prüfen und anpassen</h3>
 
@@ -902,79 +1169,88 @@ export default function EventsPage() {
         <h3 style={{ margin: 0 }}>Gespeicherte Termine</h3>
       </div>
 
-      <div className="tableWrap">
+      {backendScheduleError && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="error" style={{ margin: 0 }}>
+            {backendScheduleError}
+          </p>
+        </div>
+      )}
+
+      <div className="tableWrap" style={{ marginBottom: 16 }}>
         <table className="table">
           <thead>
             <tr>
               <th>Titel</th>
               <th>Datum</th>
-              <th>Programm</th>
-              <th>Semester</th>
-              <th>Zuweisungen</th>
+              <th>Ort</th>
+              <th>Status</th>
+              <th>Slots</th>
+              <th>Meetings</th>
               <th>Aktionen</th>
             </tr>
           </thead>
           <tbody>
-            {events.length === 0 ? (
+            {backendEventDisplays.length === 0 ? (
               <tr>
-                <td colSpan={6}>Noch keine Termine gespeichert.</td>
+                <td colSpan={7}>Keine gespeicherten Termine geladen.</td>
               </tr>
             ) : (
-              events.map((event) => (
-                <tr
-                  key={event.id}
-                  onClick={() => openEventForEdit(event)}
-                  style={{
-                    cursor: "pointer",
-                    background:
-                      editingEventId === event.id ? "rgba(46, 125, 50, 0.08)" : undefined,
-                  }}
-                >
-                  <td>{event.title}</td>
-                  <td>{event.date}</td>
-                  <td>{event.studyProgram}</td>
-                  <td>{event.semester === 0 ? "Alle Semester" : event.semester}</td>
-                  <td>{event.assignments.length}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        className="btn btnGhost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEventForEdit(event);
-                        }}
-                      >
-                        Bearbeiten
-                      </button>
+                  backendEventDisplays.map((event) => (
+                    <tr
+                      key={event.id}
+                      onClick={() => openBackendEventForEdit(event)}
+                      style={{
+                        cursor: "pointer",
+                        background:
+                          editingBackendEventId === event.id ? "rgba(46, 125, 50, 0.08)" : undefined,
+                      }}
+                    >
+                      <td>{event.title}</td>
+                      <td>{event.date}</td>
+                      <td>{event.location || <span className="muted">—</span>}</td>
+                      <td>
+                        <span className={`pill ${event.isActive ? "pillActive" : "pillInactive"}`}>
+                          {event.isActive ? "Aktiv" : "Inaktiv"}
+                        </span>
+                      </td>
+                      <td>{event.slots.length}</td>
+                      <td>{event.assignments.length}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            className="btn btnGhost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openBackendEventForEdit(event);
+                            }}
+                          >
+                            Bearbeiten
+                          </button>
 
-                      <button
-                        className="btn btnDanger"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                          <button
+                            className="btn btnDanger"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void deleteBackendEventDisplay(event);
+                            }}
+                          >
+                            Löschen
+                          </button>
 
-                          if (editingEventId === event.id) {
-                            cancelEventEdit();
-                          }
-
-                          removeEvent(event.id);
-                        }}
-                      >
-                        Löschen
-                      </button>
-
-                      <button
-                          className="btn btnGhost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            exportEvent(event);
-                          }}
-                      >
-                        Excel exportieren
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                          <button
+                            className="btn btnGhost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              exportBackendEvent(event);
+                            }}
+                          >
+                            Excel exportieren
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
             )}
           </tbody>
         </table>

@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   return proxyBackendRequest({
     request,
     method: "GET",
-    backendPath: "/api/allMeetings",
+    backendPath: "/api/slots",
   });
 }
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   return proxyBackendRequest({
     request,
     method: "POST",
-    backendPath: "/api/meetings",
+    backendPath: "/api/slots",
     body,
   });
 }
