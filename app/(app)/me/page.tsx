@@ -90,6 +90,21 @@ export default function MyCompanyProfilePage() {
         setMode("view");
     }
 
+    async function removeLogo() {
+        if (!company) return;
+
+        try {
+            await updateCompany(company.id, {
+                logo_url: "",
+            });
+
+            const updatedCompany = await getCompanyById(company.id);
+            setCompany(updatedCompany);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Logo konnte nicht entfernt werden.");
+        }
+    }
+
     async function removeImage(imageUrl: string) {
         if (!company) return;
 
@@ -203,7 +218,9 @@ export default function MyCompanyProfilePage() {
                                     : "profileStatusInactive"
                             }`}
                         >
-                            {company.status}
+                            {company.status === "Aktiv"
+                                ? "Teilnahme am Jobdating"
+                                : "Keine Teilnahme am Jobdating"}
                         </p>
                     </div>
 
@@ -219,19 +236,65 @@ export default function MyCompanyProfilePage() {
 
                     <div className="field formFull">
                         <span>Logo</span>
+
                         {company.logoUrl ? (
-                            <img
-                                src={company.logoUrl}
-                                alt={`${company.name} Logo`}
-                                onError={(e) => {
-                                    e.currentTarget.replaceWith(
-                                        Object.assign(document.createElement("p"), {
-                                            textContent: "Logo konnte nicht geladen werden.",
-                                        })
-                                    );
+                            <div
+                                style={{
+                                    position: "relative",
+                                    width: 170,
+                                    height: 100,
+                                    borderRadius: 8,
+                                    overflow: "hidden",
+                                    border: "1px solid var(--border)",
+                                    background: "#f8fafc",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginTop: 8,
                                 }}
-                                style={{ maxWidth: 180, height: "auto", marginTop: 8 }}
-                            />
+                            >
+                                <img
+                                    src={company.logoUrl}
+                                    alt={`${company.name} Logo`}
+                                    onError={(e) => {
+                                        e.currentTarget.replaceWith(
+                                            Object.assign(document.createElement("p"), {
+                                                textContent: "Logo konnte nicht geladen werden.",
+                                            })
+                                        );
+                                    }}
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "contain",
+                                    }}
+                                />
+
+                                <button
+                                    type="button"
+                                    title="Logo entfernen"
+                                    onClick={() => void removeLogo()}
+                                    style={{
+                                        position: "absolute",
+                                        top: 6,
+                                        right: 6,
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: "50%",
+                                        border: "1px solid #d1d5db",
+                                        background: "white",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        padding: 0,
+                                        boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                                    }}
+                                >
+                                    🗑️
+                                </button>
+                            </div>
                         ) : (
                             <p>Nicht angegeben</p>
                         )}
@@ -255,8 +318,8 @@ export default function MyCompanyProfilePage() {
                                         key={url}
                                         style={{
                                             position: "relative",
-                                            width: 170,
-                                            height: 100,
+                                            width: 200,
+                                            height: 120,
                                             borderRadius: 8,
                                             overflow: "hidden",
                                             border: "1px solid var(--border)",
@@ -348,14 +411,15 @@ export default function MyCompanyProfilePage() {
                     <label className="field">
                         <span>Status</span>
                         <select value={status} onChange={(e) => setStatus(e.target.value as CompanyStatus)}>
-                            <option value="Aktiv">Aktiv</option>
-                            <option value="Inaktiv">Inaktiv</option>
+                            <option value="Aktiv">Teilnahme am Jobdating</option>
+                            <option value="Inaktiv">Keine Teilnahme am Jobdating</option>
                         </select>
                     </label>
 
                     <label className="field formFull">
                         <span>Kurzbeschreibung *</span>
                         <input
+                            maxLength={100}
                             value={shortDescription}
                             onChange={(e) => setShortDescription(e.target.value)}
                             placeholder="Kurze Beschreibung des Unternehmens"
@@ -365,6 +429,7 @@ export default function MyCompanyProfilePage() {
                     <label className="field formFull">
                         <span>Beschreibung *</span>
                         <textarea
+                            maxLength={500}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={6}

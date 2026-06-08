@@ -99,14 +99,14 @@ export default function CompanyDetailPage() {
 
                 <div className="field">
                     <span>Status</span>
-                    <p
-                        className={`profileStatus ${
-                            company.status === "Aktiv"
-                                ? "profileStatusActive"
-                                : "profileStatusInactive"
-                        }`}
-                    >
-                        {company.status}
+                    <p className={`profileStatus ${
+                        company.status === "Aktiv"
+                            ? "profileStatusActive"
+                            : "profileStatusInactive"
+                    }`}>
+                        {company.status === "Aktiv"
+                            ? "Teilnahme am Jobdating"
+                            : "Keine Teilnahme am Jobdating"}
                     </p>
                 </div>
 

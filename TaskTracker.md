@@ -46,7 +46,7 @@
 ### Stakeholder Partnerunternehmen (Ivana)
 - [] Als Partnerunternehmen kann ich ERST AM TAG des Dual Job Datings die Zuteilung sehen, welche Studierenden (Vorname, Nachname) wann zum Stand des Unternehmens kommen werden.  
 - [X] Admin soll Unternehmensprofile gleich wie das Unternehmen bearbeiten können (Fotos hochladen)
-- [] Wording: "Status: Aktiv/Inaktiv" ändern (z.B. Teilnahme am Jobdating)
+- [X] Wording: "Status: Aktiv/Inaktiv" ändern (z.B. Teilnahme am Jobdating)
 
 
 ### Tests 

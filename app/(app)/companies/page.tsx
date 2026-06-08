@@ -403,10 +403,14 @@ export default function CompaniesPage() {
                         )}
                       </td>
                       <td>
-                    <span className={`pill ${c.status === "Aktiv" ? "pillActive" : "pillInactive"}`}>
-                      {c.status}
-                    </span>
-                      </td>
+                        <span
+                            className={`pill ${
+                                c.status === "Aktiv" ? "pillActive" : "pillInactive"
+                            }`}
+                        >
+                          {c.status === "Aktiv" ? "Teilnahme" : "Keine Teilnahme"}
+                        </span>
+                       </td>
 
                       <td style={{ textAlign: "right" }}>
                         <div className="kebab" data-kebab-root>

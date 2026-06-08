@@ -148,14 +148,15 @@ export default function EditCompanyPage() {
           <label className="field">
             <span>Status</span>
             <select value={status} onChange={(e) => setStatus(e.target.value as CompanyStatus)}>
-              <option value="Aktiv">Aktiv</option>
-              <option value="Inaktiv">Inaktiv</option>
+              <option value="Aktiv">Teilnahme am Jobdating</option>
+              <option value="Inaktiv">Keine Teilnahme am Jobdating</option>
             </select>
           </label>
 
           <label className="field formFull">
             <span>Kurzbeschreibung *</span>
             <input
+                maxLength={100}
                 value={shortDescription}
                 onChange={(e) => setShortDescription(e.target.value)}
                 placeholder="Kurze Beschreibung des Unternehmens"
@@ -165,6 +166,7 @@ export default function EditCompanyPage() {
           <label className="field formFull">
             <span>Beschreibung *</span>
             <textarea
+                maxLength={500}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={6}
