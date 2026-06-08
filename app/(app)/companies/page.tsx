@@ -459,6 +459,19 @@ export default function CompaniesPage() {
                       type="button"
                       role="menuitem"
                       className="kebabItem"
+                      onClick={() => {
+                        setOpenMenuId(null);
+                        router.push(`/companies/${activeCompany.id}`);
+                      }}
+                  >
+                    Unternehmensseite ansehen
+                  </button>
+
+
+                  <button
+                      type="button"
+                      role="menuitem"
+                      className="kebabItem"
                       onClick={openResendDialog}
                   >
                     Einladung erneut senden

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useCompaniesStore } from "@/lib/companiesStore";
-import { updateCompany, type CompanyStatus } from "@/lib/companiesApi";
+import {getCompanyById, updateCompany, uploadCompanyLogo, uploadCompanyImage, type Company, type CompanyStatus} from "@/lib/companiesApi";
 
 function normalizeWebsite(input: string) {
   const v = input.trim();
@@ -25,26 +24,44 @@ function isValidUrl(url: string) {
 export default function EditCompanyPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const id = params.id;
-
-  const { getById, isLoading } = useCompaniesStore();
-  const company = getById(id);
-
+  const companyId = params.id;
+  const [company, setCompany] = useState<Company | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // form state (initialize once company exists)
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
   const [website, setWebsite] = useState("");
   const [status, setStatus] = useState<CompanyStatus>("Aktiv");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  function fillForm(c: Company) {
+    setName(c.name ?? "");
+    setShortDescription(c.shortDescription ?? "");
+    setDescription(c.description ?? "");
+    setWebsite(c.website ?? "");
+    setStatus(c.status ?? "Aktiv");
+  }
+
+  async function loadCompany() {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const loadedCompany = await getCompanyById(companyId);
+      setCompany(loadedCompany);
+      fillForm(loadedCompany);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unternehmen konnte nicht geladen werden.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (!company) return;
-    setName(company.name ?? "");
-    setDescription(company.description ?? "");
-    setWebsite(company.website ?? "");
-    setStatus(company.status ?? "Aktiv");
-  }, [company]);
+    void loadCompany();
+  }, [companyId]);
 
   if (isLoading) {
     return (
@@ -53,16 +70,16 @@ export default function EditCompanyPage() {
         </div>
     );
   }
-  // If company wasn't ready on first render (rare), handle it:
+
   if (!company) {
     return (
-      <>
-        <h2>Unternehmen nicht gefunden</h2>
-        <p className="muted">Diese ID existiert nicht (oder Mock-Daten wurden zurückgesetzt).</p>
-        <button className="btn btnPrimary" onClick={() => router.push("/companies")}>
-          Zurück zur Liste
-        </button>
-      </>
+        <>
+          <h2>Unternehmen nicht gefunden</h2>
+          <p className="error">{error}</p>
+          <button className="btn btnPrimary" onClick={() => router.push("/companies")}>
+            Zurück zur Liste
+          </button>
+        </>
     );
   }
 
@@ -70,22 +87,38 @@ export default function EditCompanyPage() {
     e.preventDefault();
     setError(null);
 
+    if (!company) return;
+
     const trimmedName = name.trim();
     const trimmedDesc = description.trim();
+    const trimmedShortDescription = shortDescription.trim();
     const normalizedWebsite = normalizeWebsite(website);
 
     if (!trimmedName) return setError("Bitte Name des Unternehmens eingeben.");
     if (!trimmedDesc) return setError("Bitte kurze Beschreibung eingeben.");
+    if (!trimmedShortDescription) return setError("Bitte Kurzbeschreibung eingeben.");
     if (!normalizedWebsite) return setError("Bitte Website eingeben.");
     if (!isValidUrl(normalizedWebsite)) return setError("Bitte eine gültige Website-URL eingeben.");
 
     try {
-      await updateCompany(id, {
+      await updateCompany(company.id, {
         name: trimmedName,
         description: trimmedDesc,
+        short_description: trimmedShortDescription,
         website: normalizedWebsite,
         active: status === "Aktiv",
       });
+
+      if (logoFile) {
+        await uploadCompanyLogo(company.id, logoFile);
+      }
+
+      if (imageFile) {
+        await uploadCompanyImage(company.id, imageFile);
+      }
+
+      setLogoFile(null);
+      setImageFile(null);
 
       router.push("/companies");
     } catch (err) {
@@ -94,7 +127,7 @@ export default function EditCompanyPage() {
   }
 
   return (
-    <div className="formCard">
+    <div className="formCard profileEdit">
       <div className="formHeader">
         <div>
           <h2 style={{ margin: 0 }}>Unternehmensprofil bearbeiten</h2>
@@ -112,27 +145,53 @@ export default function EditCompanyPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </label>
 
-          <label className="field formFull">
-            <span>Kurze Beschreibung des Unternehmens *</span>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={6}
-              placeholder="Kurzbeschreibung…"
-            />
-          </label>
-
-          <label className="field">
-            <span>Webseite *</span>
-            <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" />
-          </label>
-
           <label className="field">
             <span>Status</span>
             <select value={status} onChange={(e) => setStatus(e.target.value as CompanyStatus)}>
               <option value="Aktiv">Aktiv</option>
               <option value="Inaktiv">Inaktiv</option>
             </select>
+          </label>
+
+          <label className="field formFull">
+            <span>Kurzbeschreibung *</span>
+            <input
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
+                placeholder="Kurze Beschreibung des Unternehmens"
+            />
+          </label>
+
+          <label className="field formFull">
+            <span>Beschreibung *</span>
+            <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={6}
+            />
+          </label>
+
+          <label className="field formFull">
+            <span>Webseite *</span>
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" />
+          </label>
+
+          <label className="field uploadField">
+            <span>Logo hochladen</span>
+            <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+
+          <label className="field uploadField">
+            <span>Unternehmensbild hochladen</span>
+            <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+            />
           </label>
         </div>
 
