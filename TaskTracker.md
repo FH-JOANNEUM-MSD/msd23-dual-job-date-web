@@ -48,12 +48,11 @@
 
 
 ### Tests 
-- [] Companies List (Admin)
-- [] Students List (Admin)
-- [] matching between students and companies
-- [] correct creation of events/appointments
-- [] Company Profile Page
-- [] Excel Import
-- [] Authentication
-- [] Edge Cases
-- [] Error Handling
+- [X] Companies List (Admin)
+- [X] Students List (Admin)
+- [X] matching between students and companies
+- [X] correct creation of events/appointments
+- [X] Company Profile Page
+- [X] Authentication
+- [X] Edge Cases
+- [X] Error Handling
