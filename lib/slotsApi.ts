@@ -23,6 +23,16 @@ function mapBackendSlot(dto: BackendSlotDto): BackendSlot {
   };
 }
 
+function toNumberId(value: string, fieldName: string): number {
+  const numberValue = Number(value);
+
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    throw new Error(`${fieldName} ist keine gültige ID.`);
+  }
+
+  return numberValue;
+}
+
 export async function getAllSlots(eventId?: string): Promise<BackendSlot[]> {
   const query = eventId ? `?event_id=${encodeURIComponent(eventId)}` : "";
   const data = await apiFetch<BackendSlotDto[]>(`/api/backend/slots${query}`);
@@ -40,7 +50,7 @@ export async function createSlot(input: {
     body: JSON.stringify({
       start_time: input.startTime,
       end_time: input.endTime,
-      event_id: Number(input.eventId),
+      event_id: toNumberId(input.eventId, "event_id"),
     }),
   });
 
