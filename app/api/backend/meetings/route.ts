@@ -8,14 +8,3 @@ export async function GET(request: NextRequest) {
     backendPath: "/api/allMeetings",
   });
 }
-
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-
-  return proxyBackendRequest({
-    request,
-    method: "POST",
-    backendPath: "/api/meetings",
-    body,
-  });
-}

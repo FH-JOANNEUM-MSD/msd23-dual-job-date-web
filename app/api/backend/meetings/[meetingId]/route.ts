@@ -15,16 +15,3 @@ export async function PATCH(
     body,
   });
 }
-
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ meetingId: string }> }
-) {
-  const { meetingId } = await context.params;
-
-  return proxyBackendRequest({
-    request,
-    method: "DELETE",
-    backendPath: `/api/meetings/${meetingId}`,
-  });
-}

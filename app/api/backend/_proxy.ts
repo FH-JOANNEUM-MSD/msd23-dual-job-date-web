@@ -5,7 +5,7 @@ const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 type ProxyOptions = {
   request: NextRequest;
   backendPath: string;
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
 };
 
