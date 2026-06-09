@@ -180,9 +180,9 @@ export async function assignMeetings(input: {
   const data = await apiFetch<AssignmentResultDto>("/api/backend/meetings/assign", {
     method: "POST",
     body: JSON.stringify({
-      event_id: Number(input.eventId),
-      slot_ids: input.slotIds?.map(Number),
-      student_ids: input.studentIds?.map(Number),
+      event_id: toNumberId(input.eventId, "event_id"),
+      slot_ids: input.slotIds?.map((id) => toNumberId(id, "slot_id")),
+      student_ids: input.studentIds?.map((id) => toNumberId(id, "student_id")),
       dry_run: input.dryRun ?? false,
       replace_existing: input.replaceExisting ?? false,
       include_inactive_companies: input.includeInactiveCompanies ?? false,
@@ -196,15 +196,19 @@ export async function saveEventMeetings(
   eventId: string,
   meetings: { slotId: string; studentId: string; companyId: string }[]
 ): Promise<BackendMeeting[]> {
+  // Validate the event id before building the URL so an empty/invalid id fails
+  // fast with the localized error instead of POSTing to a malformed path.
+  toNumberId(eventId, "event_id");
+
   const data = await apiFetch<BackendMeetingDto[]>(
     `/api/backend/events/${eventId}/meetings`,
     {
       method: "PUT",
       body: JSON.stringify({
         meetings: meetings.map((m) => ({
-          slot_id: Number(m.slotId),
-          student_id: Number(m.studentId),
-          company_id: Number(m.companyId),
+          slot_id: toNumberId(m.slotId, "slot_id"),
+          student_id: toNumberId(m.studentId, "student_id"),
+          company_id: toNumberId(m.companyId, "company_id"),
         })),
       }),
     }
