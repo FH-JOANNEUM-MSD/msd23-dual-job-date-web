@@ -73,6 +73,10 @@ Die Zuordnungen werden in einer übersichtlichen Tabelle dargestellt und können
 
 Die finale Business-Logik für Matching, Slot-Verwaltung und Konfliktprüfung wird backendseitig umgesetzt und befindet sich aktuell noch in Abstimmung mit dem Backend-Team.
 
+### Konsolidierung des Matchings (backend-gestütztes Matching)
+
+Das frühere In-Browser-Matching wurde entfernt. Die Schaltfläche „Automatisch zuteilen“ ruft nun den Backend-Matcher auf (POST `/api/meetings/assign` mit `dry_run`) und füllt mit dem Ergebnis die Termine-Matrix. Das Matching ist jetzt event-bezogen: Der Aufruf erfordert eine `event_id` (Pflicht) und arbeitet innerhalb der Slots des Events; optional können `slot_ids` und `student_ids` eingeschränkt werden. Erzeugte Meetings werden mit der `event_id` markiert. Die Slot-Verwaltung und Konfliktprüfung sind damit vollständig im Backend angesiedelt.
+
 ## Manuelle Bearbeitung von Zuteilungen
 
 Die erzeugten Zuteilungen können nachträglich durch Administratoren angepasst werden. Dabei können sowohl Unternehmen als auch Zeitslots manuell geändert werden.
@@ -80,11 +84,23 @@ Die erzeugten Zuteilungen können nachträglich durch Administratoren angepasst 
 Die Benutzeroberfläche wurde bereits für diese Funktion vorbereitet. 
 Zusätzlich wurden erste Frontend-Validierungen implementiert. Die vollständige Business-Logik und finale Konfliktprüfung werden zukünftig durch die Backend-Implementierung ergänzt
 
+### Matrix-Ansicht für die Terminplanung
+
+Das bisherige Raster „ein Meeting pro Studierende/n“ wurde auf der Termine-Seite durch eine editierbare Matrix ersetzt. Die Zeilen entsprechen den Unternehmen, die Spalten den Zeitslots; jede Zelle ist ein Dropdown mit der/dem zugeteilten Studierenden. Bei vielen Slots scrollt die Matrix horizontal, während die Unternehmensspalte fixiert bleibt.
+
+Das Speed-Dating-Modell erlaubt nun, dass eine/ein Studierende/r über mehrere Slots auch mehrere Meetings haben kann. Die Zellen sind nach Like/Dislike/Neutral farblich codiert. Zusätzlich erfolgen Konfliktprüfungen: Eine/ein Studierende/r darf nicht doppelt im selben Slot oder doppelt beim selben Unternehmen eingeplant werden; abgelehnte (Dislike-)Paarungen werden markiert.
+
+Über die Schaltfläche „Termin speichern“ wird der gesamte Zeitplan des Events committet. Das Speichern erfolgt per PUT `/api/events/{id}/meetings` (reconcile): Das Backend synchronisiert den kompletten Zeitplan, entfernt weggefallene Meetings und fügt neue hinzu.
+
+Slots werden nun event-eigen angelegt. Dadurch spiegelt die angezeigte Slot-Anzahl eines gespeicherten Events korrekt dessen eigene Slots wider (Behebung der zuvor stets mit 0 angezeigten Anzahl).
+
 ## Excel-Export
 
 Für die weitere Verarbeitung außerhalb des Systems wurde ein Excel-Export für Veranstaltungen implementiert.
 
 Der Export enthält alle erzeugten Zuordnungen zwischen Studierenden, Unternehmen und Zeitslots. Zusätzlich werden definierte Pausen berücksichtigt und als eigene Einträge im Export dargestellt. Dadurch kann der erzeugte Zeitplan direkt für organisatorische Zwecke verwendet oder an externe Personen weitergegeben werden.
+
+Im Zuge der Matching-Konsolidierung wurde der Excel-Export eines gespeicherten Events von einer flachen Liste pro Meeting auf ein Gitter (Unternehmen × Zeitslots) umgestellt. Die Darstellung entspricht damit der Matrix-Ansicht der Termine-Seite.
 
 ## Excel-Vorlagen
 
@@ -122,7 +138,7 @@ Im Zuge der Weiterentwicklung wurden verschiedene Oberflächenbereiche hinsichtl
 
 # Erweiterung bis 9.6:
 
-Bei der manuellen Zuweisung von Studierenden zu Unternehmen wird nun visuelles Feedback angezeigt, ob ein Unternehmen von der jeweiligen studierenden Person positiv oder negativ bewertet wurde. Dadurch können Administratoren bei manuellen Anpassungen schneller erkennen, ob eine Zuweisung zur Präferenz passt.
+Bei der manuellen Zuweisung von Studierenden zu Unternehmen wird nun visuelles Feedback angezeigt, ob ein Unternehmen von der jeweiligen studierenden Person positiv oder negativ bewertet wurde. Dadurch können Administratoren bei manuellen Anpassungen schneller erkennen, ob eine Zuweisung zur Präferenz passt. In der neuen Matrix-Ansicht (Unternehmen × Zeitslots) sind die Zellen entsprechend nach Like/Dislike/Neutral farblich codiert.
 
 Zusätzlich wurde ein Info-Button für Excel-Importe ergänzt. Über diesen Button kann eine Vorschau des erwarteten Excel-Aufbaus angezeigt werden. Dadurch wird ersichtlich, welche Spalten und Inhalte die Importdateien enthalten müssen, bevor eine Datei hochgeladen wird.
 
