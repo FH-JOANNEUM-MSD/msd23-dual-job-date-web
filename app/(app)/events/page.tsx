@@ -209,23 +209,49 @@ export default function EventsPage() {
   }
 
   function exportBackendEvent(event: BackendEventDisplay) {
-    const rows = event.assignments.map((assignment) => ({
-      Titel: event.title,
-      Datum: event.date,
-      Ort: event.location,
-      Uhrzeit: assignment.slot,
-      Unternehmen: assignment.companyName,
-      Studierende: assignment.studentName,
-    }));
-
-    if (rows.length === 0) {
+    if (event.assignments.length === 0) {
       setError("Für diesen Termin gibt es keine Zuweisungen für den Export.");
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const slots = event.slots;
+
+    // companyId -> { slotTime -> studentName }
+    const byCompanySlot = new Map<string, Record<string, string>>();
+    event.assignments.forEach((a) => {
+      if (!byCompanySlot.has(a.companyId)) byCompanySlot.set(a.companyId, {});
+      byCompanySlot.get(a.companyId)![a.slot] = a.studentName;
+    });
+
+    // Rows = companies that have at least one assignment, ordered like the matrix.
+    const orderedCompanies = (
+      companies.length
+        ? companies.filter((c) => byCompanySlot.has(c.id)).map((c) => ({ id: c.id, name: c.name }))
+        : [...byCompanySlot.keys()].map((id) => ({
+            id,
+            name: event.assignments.find((a) => a.companyId === id)?.companyName ?? id,
+          }))
+    );
+
+    // Grid layout matching the on-screen matrix: companies × time slots.
+    const header = ["Unternehmen", ...slots];
+    const body = orderedCompanies.map((c) => [
+      c.name,
+      ...slots.map((s) => byCompanySlot.get(c.id)?.[s] ?? ""),
+    ]);
+    const aoa: (string | number)[][] = [
+      [event.title],
+      [`Datum: ${event.date}${event.location ? ` · ${event.location}` : ""}`],
+      [],
+      header,
+      ...body,
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    worksheet["!cols"] = [{ wch: 28 }, ...slots.map(() => ({ wch: 24 }))];
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Termine");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Zeitplan");
     XLSX.writeFile(workbook, `${safeFileName(event.title)}_${event.date}.xlsx`);
   }
 
@@ -675,8 +701,8 @@ export default function EventsPage() {
         <span className="prefCell prefCell--none">— Offen</span>
       </div>
 
-      <div className="tableWrap" style={{ marginBottom: 16 }}>
-        <table className="table">
+      <div className="tableWrap matrixWrap" style={{ marginBottom: 16 }}>
+        <table className="table matrixTable">
           <thead>
             <tr>
               <th>Unternehmen</th>
@@ -701,11 +727,15 @@ export default function EventsPage() {
                   {activeSlots.map((slot) => {
                     const studentId = cellAssignments[cellKey(company.id, slot)] ?? "";
                     const pref = studentId ? (prefMap.get(preferenceKey(studentId, company.id)) ?? "none") : null;
+                    const studentName = studentId
+                      ? (filteredStudents.find((s) => s.id === studentId)?.name ?? "")
+                      : "";
                     return (
                       <td key={slot}>
                         <select
                           className={`tableSelect${pref ? ` tableSelect--${pref}` : ""}`}
                           value={studentId}
+                          title={studentName || undefined}
                           onChange={(e) => updateCell(company.id, slot, e.target.value)}
                         >
                           <option value="">—</option>
