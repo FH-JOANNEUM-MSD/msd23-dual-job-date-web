@@ -277,7 +277,7 @@ export default function StudentsPage() {
         const nameFromColumn = getCell("name");
         const fullName = `${firstName} ${lastName}`.trim() || nameFromColumn || "";
 
-        const emailValue = getCell("email") || getCell("emailadresse") || getCell("mail");
+        const emailValue = getCell("e-mail") || getCell("emailadresse") || getCell("mail");
         const studyProgram = getCell("studyprogram") || getCell("studiengang") || getCell("akademischesprogramm");
         const semesterRaw = getCell("semester");
         const semesterNumber = Number(semesterRaw);
