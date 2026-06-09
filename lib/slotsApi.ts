@@ -4,12 +4,14 @@ export type BackendSlot = {
   id: string;
   startTime: string;
   endTime: string;
+  eventId: string;
 };
 
 type BackendSlotDto = {
   id?: string | number;
   start_time?: string;
   end_time?: string;
+  event_id?: string | number;
 };
 
 function mapBackendSlot(dto: BackendSlotDto): BackendSlot {
@@ -17,11 +19,13 @@ function mapBackendSlot(dto: BackendSlotDto): BackendSlot {
     id: String(dto.id ?? ""),
     startTime: dto.start_time ?? "",
     endTime: dto.end_time ?? "",
+    eventId: String(dto.event_id ?? ""),
   };
 }
 
-export async function getAllSlots(): Promise<BackendSlot[]> {
-  const data = await apiFetch<BackendSlotDto[]>("/api/backend/slots");
+export async function getAllSlots(eventId?: string): Promise<BackendSlot[]> {
+  const query = eventId ? `?event_id=${encodeURIComponent(eventId)}` : "";
+  const data = await apiFetch<BackendSlotDto[]>(`/api/backend/slots${query}`);
   if (!Array.isArray(data)) return [];
   return data.map(mapBackendSlot);
 }
@@ -29,12 +33,14 @@ export async function getAllSlots(): Promise<BackendSlot[]> {
 export async function createSlot(input: {
   startTime: string;
   endTime: string;
+  eventId: string;
 }): Promise<BackendSlot> {
   const data = await apiFetch<BackendSlotDto>("/api/backend/slots", {
     method: "POST",
     body: JSON.stringify({
       start_time: input.startTime,
       end_time: input.endTime,
+      event_id: Number(input.eventId),
     }),
   });
 
