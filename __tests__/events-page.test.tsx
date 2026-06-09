@@ -123,9 +123,12 @@ describe("EventsPage (matrix + backend matching)", () => {
     test("READ: shows saved events with the correct event-owned slot count", async () => {
         render(<EventsPage />);
         expect(await screen.findByText("Westeros Career Fair")).toBeInTheDocument();
-        // defect-3 fix: slot count comes from event-scoped slots (2), not from meetings.
+        // defect-3 fix: slot count comes from event-scoped slots (2), not from
+        // meetings (1). Pin the dedicated Slots <td> (column index 4: Titel,
+        // Datum, Ort, Status, Slots, …) so the date's "2" can't mask a regression.
         const row = screen.getByText("Westeros Career Fair").closest("tr")!;
-        expect(row).toHaveTextContent("2");
+        const slotsCell = row.querySelectorAll("td")[4];
+        expect(slotsCell).toHaveTextContent(/^2$/);
     });
 
     test("renders the companies × slots matrix", async () => {
@@ -168,7 +171,16 @@ describe("EventsPage (matrix + backend matching)", () => {
         await waitFor(() => expect(saveEventMeetings).toHaveBeenCalled());
         const [eventIdArg, meetingsArg] = (saveEventMeetings as jest.Mock).mock.calls[0];
         expect(eventIdArg).toBe("2");
+        // The mocks deterministically yield exactly one desired meeting; assert its
+        // contents so the test proves buildDesiredMeetings maps slot time -> slotId
+        // (09:00 -> new-09:00:00), rather than passing on an empty array.
         expect(Array.isArray(meetingsArg)).toBe(true);
+        expect(meetingsArg).toHaveLength(1);
+        expect(meetingsArg[0]).toEqual({
+            slotId: "new-09:00:00",
+            studentId: "1",
+            companyId: "6",
+        });
     });
 
     test("DELETE: deletes the event (cascade handles meetings)", async () => {

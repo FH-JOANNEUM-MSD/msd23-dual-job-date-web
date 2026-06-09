@@ -160,7 +160,6 @@ export default function EventsPage() {
   const [matchingInfo, setMatchingInfo] = useState<string | null>(null);
 
   const [backendMeetings, setBackendMeetings] = useState<BackendMeeting[]>([]);
-  const [backendMeetingsError, setBackendMeetingsError] = useState<string | null>(null);
   const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([]);
   const [backendSlots, setBackendSlots] = useState<BackendSlot[]>([]);
   const [backendScheduleError, setBackendScheduleError] = useState<string | null>(null);
@@ -243,11 +242,12 @@ export default function EventsPage() {
     return `${hh}:${mm}:00`;
   }
 
-  function sameSlot(slot: BackendSlot, slotStart: string, slotEnd: string) {
-    return (
-      slot.startTime.slice(0, 5) === slotStart.slice(0, 5) &&
-      slot.endTime.slice(0, 5) === slotEnd.slice(0, 5)
-    );
+  // Match on startTime alone: start times are unique within an event grid and
+  // knownSlots is already eventId-scoped. Matching on endTime too would miss
+  // existing slots whose stored duration differs from the (default) input,
+  // causing duplicate slot rows on edit.
+  function sameSlot(slot: BackendSlot, slotStart: string) {
+    return slot.startTime.slice(0, 5) === slotStart.slice(0, 5);
   }
 
   async function refreshBackendSchedule() {
@@ -260,7 +260,6 @@ export default function EventsPage() {
     setBackendEvents(eventsData);
     setBackendMeetings(meetingsData);
     setBackendSlots(slotsData);
-    setBackendMeetingsError(null);
     setBackendScheduleError(null);
 
     return { eventsData, meetingsData, slotsData };
@@ -275,7 +274,7 @@ export default function EventsPage() {
       const endTimeValue = addMinutesToTimeString(slot, slotDurationMinutes);
 
       const existingSlot = knownSlots.find((backendSlot) =>
-        sameSlot(backendSlot, startTimeValue, endTimeValue)
+        sameSlot(backendSlot, startTimeValue)
       );
 
       if (existingSlot) {
@@ -537,7 +536,6 @@ export default function EventsPage() {
               ? backendScheduleErr.message
               : "Backend-Termine konnten nicht geladen werden.";
           setBackendScheduleError(message);
-          setBackendMeetingsError(message);
           console.error("Backend schedule fetch failed:", backendScheduleErr);
         }
 
@@ -558,8 +556,6 @@ export default function EventsPage() {
     if (!studyProgram) return;
     if (semester !== 0 && !semestersForProgram.includes(semester)) setSemester(0);
   }, [studyProgram, semestersForProgram, semester]);
-
-  void backendMeetingsError;
 
   return (
     <>
