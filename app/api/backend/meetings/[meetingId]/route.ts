@@ -15,3 +15,19 @@ export async function PATCH(
     body,
   });
 }
+
+// NOTE: retained until Task 4 removes the last `deleteMeeting()` caller in
+// app/(app)/events/page.tsx. lib/meetingsApi.ts `deleteMeeting()` still DELETEs
+// here at this commit, so dropping it now would 404 at runtime.
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ meetingId: string }> }
+) {
+  const { meetingId } = await context.params;
+
+  return proxyBackendRequest({
+    request,
+    method: "DELETE",
+    backendPath: `/api/meetings/${meetingId}`,
+  });
+}
