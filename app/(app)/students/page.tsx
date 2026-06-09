@@ -48,6 +48,7 @@ export default function StudentsPage() {
   const resendDialogRef = useRef<HTMLDialogElement | null>(null);
   const templatePreviewDialogRef = useRef<HTMLDialogElement | null>(null);
   const [resendEmail, setResendEmail] = useState("");
+  const [search, setSearch] = useState("");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -346,6 +347,17 @@ export default function StudentsPage() {
     }
   }
 
+  const filteredStudents = students.filter((student) =>
+      [
+        student.name,
+        student.studyProgram,
+        student.semester,
+      ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase())
+  );
+
   function openDeleteDialog(id: string) {
     setDeleteId(id);
     setOpenMenuId(null);
@@ -372,6 +384,16 @@ export default function StudentsPage() {
 
   return (
       <>
+
+        <input
+            className="searchInput"
+            type="text"
+            placeholder="Studierende suchen..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+        />
+
+
         <div className="pageHeader">
           <div>
             <h2 style={{ margin: 0 }}>Studierende</h2>
@@ -462,7 +484,7 @@ export default function StudentsPage() {
                   </td>
                 </tr>
             ) : (
-                students.map((s) => (
+                filteredStudents.map((s) => (
                     <tr key={s.id}>
                       <td>{s.name}</td>
                       <td>{s.studyProgram}</td>

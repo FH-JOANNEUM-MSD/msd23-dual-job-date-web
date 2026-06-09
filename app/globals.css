@@ -568,3 +568,19 @@ body {
   display: block;
   margin-bottom: 8px;
 }
+
+.searchInput {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  padding: 10px 12px;
+  margin: 0 auto 14px auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.searchInput:focus {
+  outline: 2px solid rgba(46, 125, 50, 0.25);
+  border-color: var(--green);
+}

@@ -120,7 +120,7 @@ Das habt ihr mehrfach angepasst.
 Im Zuge der Weiterentwicklung wurden verschiedene Oberflächenbereiche hinsichtlich Benutzerfreundlichkeit und Übersichtlichkeit überarbeitet. Dazu gehören die Anpassung von Bezeichnungen, die Verbesserung der Tabellenansichten, die Hervorhebung wichtiger Statusinformationen sowie die Optimierung von Formularen und Dialogfenstern.
 
 
-## Erweiterung bis 9.6:
+# Erweiterung bis 9.6:
 
 Bei der manuellen Zuweisung von Studierenden zu Unternehmen wird nun visuelles Feedback angezeigt, ob ein Unternehmen von der jeweiligen studierenden Person positiv oder negativ bewertet wurde. Dadurch können Administratoren bei manuellen Anpassungen schneller erkennen, ob eine Zuweisung zur Präferenz passt.
 
@@ -131,3 +131,6 @@ Für Partnerunternehmen wurde die Ansicht „Zuteilung Job Dating“ erweitert. 
 Außerdem wurde die Bearbeitung von Unternehmensprofilen für Administratoren erweitert. Administratoren können Unternehmensprofile nun ähnlich wie die Unternehmen selbst bearbeiten und dabei auch Logos sowie Unternehmensbilder hochladen bzw. verwalten.
 
 Zusätzlich wurde die bisherige Status-Bezeichnung „Aktiv/Inaktiv“ sprachlich angepasst. Statt einer technischen Statusanzeige wird nun verständlicher angezeigt, ob ein Unternehmen am Jobdating teilnimmt oder nicht.
+
+Suchfunktion für Unternehmen und Studierende: Es wurde eine einfache Frontend-Suchfunktion für die Admin-Seiten „Unternehmen“ und „Studierende“ umgesetzt. Die Suche funktioniert ohne zusätzlichen Backend-Endpunkt, da die bereits geladenen Daten direkt im Frontend gefiltert werden.
+

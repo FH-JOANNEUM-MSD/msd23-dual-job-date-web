@@ -35,6 +35,7 @@ export default function CompaniesPage() {
   const resendDialogRef = useRef<HTMLDialogElement | null>(null);
   const templatePreviewDialogRef = useRef<HTMLDialogElement | null>(null);
   const [resendEmail, setResendEmail] = useState("");
+  const [search, setSearch] = useState("");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -256,6 +257,18 @@ export default function CompaniesPage() {
     }
   }
 
+
+  const filteredCompanies = companies.filter((company) =>
+      [
+        company.name,
+        company.description,
+        company.website,
+      ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase())
+  );
+
   function openDeleteDialog(id: string) {
     setDeleteId(id);
     setOpenMenuId(null);
@@ -290,6 +303,15 @@ export default function CompaniesPage() {
 
   return (
       <>
+
+        <input
+            className="searchInput"
+            type="text"
+            placeholder="Unternehmen suchen..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+        />
+
         <div className="pageHeader">
           <div>
             <h2 style={{ margin: 0 }}>Unternehmen</h2>
@@ -389,7 +411,7 @@ export default function CompaniesPage() {
                   </td>
                 </tr>
             ) : (
-                companies.map((c) => (
+                filteredCompanies.map((c) => (
                     <tr key={c.id}>
                       <td>{c.name}</td>
                       <td>{c.description || <span className="muted">Nicht angegeben</span>}</td>
