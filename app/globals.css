@@ -401,13 +401,17 @@ body {
 
 .tableSelect {
   width: 100%;
-  min-width: 180px;
+  min-width: 200px;
   font: inherit;
-  padding: 10px 12px;
+  /* extra right padding so long names never sit under the native dropdown arrow */
+  padding: 10px 34px 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: white;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tableSelect:focus {
@@ -443,6 +447,72 @@ body {
   overflow-y: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Assignment matrix (companies × slots): scroll horizontally as slots grow,
+   keep the company column pinned so it stays readable while scrolling. */
+.tableWrap.matrixWrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Use separate borders so the pinned-column divider renders in Chrome too:
+   with border-collapse:collapse, Chrome drops box-shadows on sticky cells
+   (Safari keeps them), which is why the vertical line was Safari-only. */
+.table.matrixTable {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Slot (time) column headers: centered, tabular figures, quieter than companies */
+.matrixTable thead th:not(:first-child) {
+  min-width: 200px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slightly tighter cells so more of the grid is visible at a glance */
+.matrixTable td {
+  padding: 8px 10px;
+}
+.matrixTable td:first-child {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+/* Subtle zebra striping helps scan across many companies */
+.matrixTable tbody tr:nth-child(even) td {
+  background: #fbfcfd;
+}
+
+/* Pinned company column: opaque background synced with the row, plus a divider
+   and a soft shadow so it reads as anchored while the slots scroll underneath. */
+.matrixTable th:first-child,
+.matrixTable td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 160px;
+  background: #fff;
+  box-shadow: 1px 0 0 var(--border), 6px 0 8px -6px rgba(15, 23, 42, 0.12);
+}
+.matrixTable thead th:first-child {
+  background: #f9fafb;
+  z-index: 2;
+}
+.matrixTable tbody tr:nth-child(even) td:first-child {
+  background: #fbfcfd;
+}
+
+/* Soft brand-tinted row hover, kept in sync across the pinned column */
+.matrixTable tbody tr:hover td,
+.matrixTable tbody tr:hover td:first-child {
+  background: #f1f7f1;
 }
 
 .prefTable {

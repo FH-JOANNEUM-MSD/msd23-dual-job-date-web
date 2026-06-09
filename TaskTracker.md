@@ -23,6 +23,15 @@
 - [X] excel muster für Christine
 - Vercel deployment
 
+### Matching Consolidation
+- [X] Termine-Seite: altes Raster "ein Meeting pro Studierende/n" durch editierbare Matrix (Zeilen: Unternehmen, Spalten: Zeitslots) ersetzt; jede Zelle ist ein Dropdown mit der/dem zugeteilten Studierenden. Die Matrix scrollt horizontal, die Unternehmensspalte bleibt fixiert.
+- [X] "Automatisch zuteilen" ruft jetzt den Backend-Matcher (`POST /meetings/assign`, `dry_run`) auf und füllt die Matrix; der frühere In-Browser-Matching-Algorithmus wurde entfernt.
+- [X] "Termin speichern" committet den gesamten Zeitplan über `PUT /api/events/{id}/meetings` (reconcile: entfernt weggefallene, fügt neue Meetings hinzu).
+- [X] Slots werden event-eigen angelegt (`POST /api/slots` verlangt `event_id`); die angezeigte Slot-Anzahl eines gespeicherten Events spiegelt die eigenen Slots des Events wider (Fix der vorher immer 0 angezeigten Anzahl).
+- [X] `POST /api/meetings/assign` ist jetzt event-bezogen (`event_id` Pflicht); `replace_existing` löscht nur Meetings dieses Events und darf beim echten Commit nicht mit einer slot_ids/student_ids-Teilmenge kombiniert werden.
+- [X] Excel-Export eines gespeicherten Events ist jetzt ein Gitter (Unternehmen x Zeitslots) statt einer flachen Liste pro Meeting.
+- [X] Speed-Dating-Modell: ein/e Studierende/r kann mehrere Meetings über mehrere Slots haben; Konfliktprüfungen (kein/e Studierende/r doppelt im selben Slot oder doppelt beim selben Unternehmen) und Markierung abgelehnter (Dislike-)Paarungen bleiben erhalten.
+
 ### Excel Import Vorlagen
 
 #### Studierende

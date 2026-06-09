@@ -5,7 +5,7 @@ const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 type ProxyOptions = {
   request: NextRequest;
   backendPath: string;
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
 };
 
@@ -31,8 +31,13 @@ export async function proxyBackendRequest({
     );
   }
 
+  // Forward the incoming query string (e.g. ?event_id=...) so event-scoped
+  // listing reaches the backend. backendPath itself has no query, so a bare
+  // append is safe.
+  const queryString = request.nextUrl.search;
+
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}${backendPath}`, {
+    const response = await fetch(`${BACKEND_BASE_URL}${backendPath}${queryString}`, {
       method,
       headers: {
         Authorization: authHeader,

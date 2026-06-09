@@ -56,25 +56,6 @@ export async function getAllMeetings(): Promise<BackendMeeting[]> {
   return data.map(mapBackendMeeting);
 }
 
-export async function createMeeting(input: {
-  eventId: string;
-  slotId: string;
-  studentId: string;
-  companyId: string;
-}): Promise<BackendMeeting> {
-  const data = await apiFetch<BackendMeetingDto>("/api/backend/meetings", {
-    method: "POST",
-    body: JSON.stringify({
-      event_id: toNumberId(input.eventId, "event_id"),
-      slot_id: toNumberId(input.slotId, "slot_id"),
-      student_id: toNumberId(input.studentId, "student_id"),
-      company_id: toNumberId(input.companyId, "company_id"),
-    }),
-  });
-
-  return mapBackendMeeting(data);
-}
-
 export async function updateMeeting(
   meetingId: string,
   input: Partial<{
@@ -113,17 +94,126 @@ export async function updateMeeting(
   return mapBackendMeeting(data);
 }
 
-export async function deleteMeeting(meetingId: string) {
-  return apiFetch<{ message?: string; status?: string }>(
-    `/api/backend/meetings/${meetingId}`,
-    {
-      method: "DELETE",
-    }
-  );
-}
-
 export async function getMeetingsForCompany(companyId: string): Promise<BackendMeeting[]> {
   const data = await apiFetch<BackendMeetingDto[]>(`/api/backend/companies/${companyId}/meetings`);
+  if (!Array.isArray(data)) return [];
+  return data.map(mapBackendMeeting);
+}
+
+export type PlannedMeeting = {
+  slotId: string;
+  studentId: string;
+  companyId: string;
+  preferenceType: string;
+};
+
+export type MeetingAssignmentResult = {
+  dryRun: boolean;
+  plannedMeetings: PlannedMeeting[];
+  insertedMeetings: number;
+  summary: {
+    totalCompanySlots: number;
+    generatedMeetings: number;
+    assignedLike: number;
+    assignedNeutral: number;
+    assignedDislike: number;
+    dislikeAvoidedSlots: number;
+    unassignedCompanySlots: number;
+  };
+};
+
+type PlannedMeetingDto = {
+  slot_id?: string | number;
+  student_id?: string | number;
+  company_id?: string | number;
+  preference_type?: string;
+};
+
+type AssignmentResultDto = {
+  dry_run?: boolean;
+  planned_meetings?: PlannedMeetingDto[];
+  inserted_meetings?: number;
+  summary?: {
+    total_company_slots?: number;
+    generated_meetings?: number;
+    assigned_like?: number;
+    assigned_neutral?: number;
+    assigned_dislike?: number;
+    dislike_avoided_slots?: number;
+    unassigned_company_slots?: number;
+  };
+};
+
+function mapAssignmentResult(dto: AssignmentResultDto): MeetingAssignmentResult {
+  const planned = Array.isArray(dto.planned_meetings) ? dto.planned_meetings : [];
+  const summary = dto.summary ?? {};
+
+  return {
+    dryRun: Boolean(dto.dry_run),
+    plannedMeetings: planned.map((p) => ({
+      slotId: String(p.slot_id ?? ""),
+      studentId: String(p.student_id ?? ""),
+      companyId: String(p.company_id ?? ""),
+      preferenceType: String(p.preference_type ?? ""),
+    })),
+    insertedMeetings: Number(dto.inserted_meetings ?? 0),
+    summary: {
+      totalCompanySlots: Number(summary.total_company_slots ?? 0),
+      generatedMeetings: Number(summary.generated_meetings ?? 0),
+      assignedLike: Number(summary.assigned_like ?? 0),
+      assignedNeutral: Number(summary.assigned_neutral ?? 0),
+      assignedDislike: Number(summary.assigned_dislike ?? 0),
+      dislikeAvoidedSlots: Number(summary.dislike_avoided_slots ?? 0),
+      unassignedCompanySlots: Number(summary.unassigned_company_slots ?? 0),
+    },
+  };
+}
+
+export async function assignMeetings(input: {
+  eventId: string;
+  slotIds?: string[];
+  studentIds?: string[];
+  dryRun?: boolean;
+  replaceExisting?: boolean;
+  includeInactiveCompanies?: boolean;
+}): Promise<MeetingAssignmentResult> {
+  const data = await apiFetch<AssignmentResultDto>("/api/backend/meetings/assign", {
+    method: "POST",
+    body: JSON.stringify({
+      event_id: toNumberId(input.eventId, "event_id"),
+      slot_ids: input.slotIds?.map((id) => toNumberId(id, "slot_id")),
+      student_ids: input.studentIds?.map((id) => toNumberId(id, "student_id")),
+      dry_run: input.dryRun ?? false,
+      replace_existing: input.replaceExisting ?? false,
+      include_inactive_companies: input.includeInactiveCompanies ?? false,
+    }),
+  });
+
+  return mapAssignmentResult(data);
+}
+
+export async function saveEventMeetings(
+  eventId: string,
+  meetings: { slotId: string; studentId: string; companyId: string }[]
+): Promise<BackendMeeting[]> {
+  // Validate the event id before building the URL so an empty/invalid id fails
+  // fast with the localized error instead of POSTing to a malformed path.
+  toNumberId(eventId, "event_id");
+
+  const data = await apiFetch<BackendMeetingDto[]>(
+    `/api/backend/events/${eventId}/meetings`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        meetings: meetings.map((m) => ({
+          slot_id: toNumberId(m.slotId, "slot_id"),
+          student_id: toNumberId(m.studentId, "student_id"),
+          company_id: toNumberId(m.companyId, "company_id"),
+        })),
+      }),
+    }
+  );
+
   if (!Array.isArray(data)) return [];
   return data.map(mapBackendMeeting);
 }
